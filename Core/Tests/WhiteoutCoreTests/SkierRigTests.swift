@@ -109,64 +109,9 @@ struct SkierRigSkeletonTests {
         #expect(pose.shoulder.y < pose.head.y)
     }
 
-    @Test("the skis span the body and sit under it", arguments: [
-        SkierRig.upright, SkierRig.tuck, SkierRig.airborne, SkierRig.collapsed
-    ])
-    func skisSpanTheBody(pose: SkierPose) {
-        // The skis are the strongest read of body angle, so they must stay the longest
-        // element and must not creep above the knee.
-        let skiLength = pose.skiTip.x - pose.skiTail.x
-        #expect(skiLength > 1.0)
-        #expect(pose.skiTail.x < pose.boot.x)
-        #expect(pose.skiTip.x > pose.boot.x)
-        #expect(pose.skiTip.y < pose.knee.y)
-    }
-
-    @Test("bones are the same length in every pose")
-    func bonesAreRigid() {
-        // The test this replaces allowed each limb a range wide enough to admit two very
-        // different lengths, so it passed while the upper arm was 51% shorter in the tuck
-        // than standing and the forearm 67% longer. A tolerance band is not a rigidity
-        // check; comparing every pose against the standing one is.
-        func bones(_ pose: SkierPose) -> [String: Double] {
-            [
-                "shin": hypot(pose.knee.x - pose.boot.x, pose.knee.y - pose.boot.y),
-                "thigh": hypot(pose.hip.x - pose.knee.x, pose.hip.y - pose.knee.y),
-                "torso": hypot(pose.shoulder.x - pose.hip.x, pose.shoulder.y - pose.hip.y),
-                "upperArm": hypot(pose.elbow.x - pose.shoulder.x, pose.elbow.y - pose.shoulder.y),
-                "forearm": hypot(pose.hand.x - pose.elbow.x, pose.hand.y - pose.elbow.y),
-                "neck": hypot(pose.head.x - pose.shoulder.x, pose.head.y - pose.shoulder.y),
-                "pole": hypot(pose.poleTip.x - pose.hand.x, pose.poleTip.y - pose.hand.y),
-                "ski": pose.skiTip.x - pose.skiTail.x
-            ]
-        }
-
-        let reference = bones(SkierRig.upright)
-        for (name, pose) in [
-            ("tuck", SkierRig.tuck),
-            ("airborne", SkierRig.airborne),
-            ("collapsed", SkierRig.collapsed)
-        ] {
-            for (bone, length) in bones(pose) {
-                let expected = reference[bone] ?? 0
-                #expect(
-                    abs(length - expected) < 0.005,
-                    "\(name) \(bone) is \(length), standing is \(expected)"
-                )
-            }
-        }
-    }
-
-    @Test("the head always overlaps the shoulders, so no neck gap opens")
-    func headMeetsShoulders() {
-        // Head radius plus half the torso width has to exceed the neck bone, or the figure
-        // comes apart at the collar in whichever pose gets it wrong.
-        let reach = SkierRig.headRadius + SkierRig.Width.core / 2
-        for pose in [SkierRig.upright, SkierRig.tuck, SkierRig.airborne, SkierRig.collapsed] {
-            let neck = hypot(pose.head.x - pose.shoulder.x, pose.head.y - pose.shoulder.y)
-            #expect(neck < reach)
-        }
-    }
+    // Ski span, bone rigidity and the head/shoulder overlap now hold across *all eight*
+    // authored poses and at every point between any two of them, so those assertions live
+    // in `RigAnglesTests` where they can be made against blended poses as well.
 
     @Test("the head is never wider than the torso")
     func headIsNotALollipop() {
@@ -245,10 +190,41 @@ struct SkierRigPosingTests {
                               cues: .idle) == SkierRig.upright)
     }
 
-    @Test("blending is clamped, so an out-of-range cue cannot break the pose")
-    func blendIsClamped() {
-        #expect(SkierRig.upright.blended(toward: SkierRig.tuck, amount: 3) == SkierRig.tuck)
-        #expect(SkierRig.upright.blended(toward: SkierRig.tuck, amount: -2) == SkierRig.upright)
+    @Test("the flip pose is markedly more compact than simply being airborne")
+    func flipTuckBallsUp() {
+        // If the two read the same, a backflip is a rotating sprite and the rotation is
+        // carrying the entire read on its own.
+        #expect(SkierRig.flipTuck.silhouetteHeight < SkierRig.airborne.silhouetteHeight * 0.85)
+        // Knees drawn up toward the chest, not just a lower stance.
+        #expect(SkierRig.flipTuck.knee.y > SkierRig.flipTuck.hip.y - 0.06)
+        #expect(SkierRig.flipTuck.boot.x > SkierRig.airborne.boot.x)
+    }
+
+    @Test("the landing pose absorbs deeply without becoming a tuck")
+    func landingAbsorbs() {
+        // Deep enough to read as taking a hit, open enough that it is never mistaken for
+        // the racing egg — the two mean opposite things about what the player just did.
+        let landing = SkierRig.landing.silhouetteHeight
+        #expect(landing < SkierRig.upright.silhouetteHeight * 0.88)
+        #expect(landing > SkierRig.tuck.silhouetteHeight * 1.25)
+        // Chest up and hands forward for balance, unlike the tuck's head-down egg.
+        #expect(SkierRig.landing.head.y > SkierRig.tuck.head.y)
+    }
+
+    @Test("the carve pair straddles the standing pose, so the rhythm reads as flex and extend")
+    func carvePairStraddlesUpright() {
+        let upright = SkierRig.upright.silhouetteHeight
+        #expect(SkierRig.carveLeft.silhouetteHeight < upright)
+        #expect(SkierRig.carveRight.silhouetteHeight > upright)
+
+        // The bob alone is only 10% of body height. What sells the rhythm at this size is
+        // the pole tip, swinging roughly three times as far as the body travels.
+        let poleTravel = hypot(
+            SkierRig.carveRight.poleTip.x - SkierRig.carveLeft.poleTip.x,
+            SkierRig.carveRight.poleTip.y - SkierRig.carveLeft.poleTip.y
+        )
+        let bodyTravel = SkierRig.carveRight.silhouetteHeight - SkierRig.carveLeft.silhouetteHeight
+        #expect(poleTravel > bodyTravel * 2.5)
     }
 }
 

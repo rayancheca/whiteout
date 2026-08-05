@@ -32,6 +32,12 @@ final class MountainScene: SKScene {
     private var lastFrameTime: TimeInterval = 0
 
     private var cues: FeelCues = .idle
+    /// Carries the pose between frames so states ease rather than snap. The simulation is
+    /// memoryless by design, and a transition is exactly the memory it refuses to keep.
+    private var animator: SkierAnimator = .idle
+    /// This frame's solved pose. Built once, then read by the skier and the spray emitter —
+    /// the pose is now a stack of blends, so solving it twice a frame is real work wasted.
+    private var pose: SkierPose = SkierRig.upright
     /// Lagged camera height. Following terrain exactly pins the skier to a fixed pixel and
     /// the mountain stops registering as terrain at all; a lag lets crests lift them.
     private var cameraHeightM: Double
@@ -129,6 +135,10 @@ final class MountainScene: SKScene {
         // reappear as a stray line once the new run reaches them. The camera and the landing
         // punch are likewise still holding the crash's values.
         cues = .idle
+        // Without this the new run inherits the crash's collapse weight and the skier spends
+        // the first half-second unfolding off the snow.
+        animator = .idle
+        pose = SkierRig.upright
         trail.removeAll()
         landingPunch = 0
         cameraHeightM = terrain.height(at: 0)
@@ -536,6 +546,12 @@ final class MountainScene: SKScene {
             feedback.crash()
         }
 
+        // After the impact, because the absorption pose is driven by the same number that
+        // fires the camera punch and the haptic thump — three consumers disagreeing about
+        // when a landing happened is how a landing ends up feeling smeared.
+        animator = animator.advanced(for: skier, cues: cues, landingImpact: impact, delta: delta)
+        pose = animator.pose(for: skier, cues: cues)
+
         advanceCamera(delta: delta)
         recordTrail()
 
@@ -604,7 +620,7 @@ final class MountainScene: SKScene {
             : 0
         // Emitted from the ski tail, where the plume actually separates — and it rotates
         // with the skier, so on a steep pitch the spray leaves the edge rather than the air.
-        spray.position = skierNode.sprayOrigin(for: SkierRig.pose(for: skier, cues: cues))
+        spray.position = skierNode.sprayOrigin(for: pose)
     }
 
     private func layoutRidges() {
@@ -703,8 +719,10 @@ final class MountainScene: SKScene {
             : CGFloat(skier.rotation)
         // Tucking is readable in the silhouette before it is readable in the speed. It used
         // to be a 0.68 vertical squash, which shortens the standing shape without changing
-        // it; a tuck is a different shape, so the rig now poses the joints instead.
-        skierNode.apply(SkierRig.pose(for: skier, cues: cues))
+        // it; a tuck is a different shape, so the rig poses the joints instead — and the
+        // animator eases between poses, so the shape changes over a few frames rather than
+        // between two of them.
+        skierNode.apply(pose)
         skierNode.alpha = skier.hasCrashed ? 0.75 : 1.0
     }
 

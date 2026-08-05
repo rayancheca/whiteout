@@ -1,104 +1,116 @@
 # State
 
-**Updated:** Session 0004 · 2026-08-05
-**Milestone:** M1 (Vertical Slice) — T-113 closed as not-a-defect, T-112 done, T-115 added
+**Updated:** Session 0005 · 2026-08-05
+**Milestone:** M1 (Vertical Slice) — T-102 and T-111 done together, T-116 opened
 
 ---
 
 ## Where the project is
 
-**111 tests passing** across 16 suites in ~30 ms. iOS build green. Working tree clean,
-**8 commits ahead of `origin/main` and not yet pushed** — see "The push" below.
+**143 tests passing** across 22 suites in ~70 ms. iOS build green. Working tree clean,
+**11 commits ahead of `origin/main` and not yet pushed**.
 
-T-112 is **done**. All eight README beats are recaptured, fullscreen, against live
-Open-Meteo data, with the real skier rig. T-113 turned out not to be a bug at all.
+T-102 and T-111 are **done**, and they were the same fix. The rig now blends in angle space
+and carries transition state between frames, so the skier moves between poses instead of
+switching between them.
 
-## T-113 was never a defect
+## Why the two tasks were one
 
-**The tuck renders. It always did.** The app is fine; the *measurement* was wrong, in two
-independent ways, and neither is visible from a transcript:
+`FeelModel` emitted `tuckCompression` as a binary 0 or 1, and `SkierRig.pose` hard-switched
+between four authored poses. So no intermediate blend value was ever drawn — which is exactly
+why T-111's bone shortening had been unobservable since T-101. Adding transitions is what
+made the defect visible; fixing the blend is what made the transitions correct.
 
-1. **A hold call returns after touch-up.** So a screenshot taken on the next line always
-   photographs the released, upright pose. The pose can only ever look unchanged. The
-   capture has to run *concurrently* with the hold — background the screenshot, issue the
-   touch in the same batch.
-2. **The app under test was a stale process**, frozen at 894 m / 0 km/h from a previous
-   session. A frozen SpriteKit app photographs exactly like a live one ignoring input. This
-   is also what produced Session 0003's "speed only drifted 61 → 63 km/h over a 15 s press".
+## What changed
 
-Against a freshly launched app, one sustained `touch_path` took the skier **43 → 71 →
-80 km/h**, tuck rendered throughout, EDGE meter climbing. No code was changed, because
-nothing was broken. Recorded as **ADR-023**.
+**Angle-space blending (ADR-024).** `RigAngles` — the joint angles — is now canonical, and
+`SkierPose` is what falls out of solving it. Blending happens on angles; bone lengths are
+constants of the solver, so they are rigid at every `t` by construction. `SkierPose.blended`
+and `RigPoint.blended` are **deleted**, not deprecated: a pose that carries no blend method
+cannot be blended wrongly by the next caller.
 
-The user confirmed by hand at the start of the session that holding does tuck the skier on
-the simulator — that one answer is what split the cause in a single step. Ask it early.
+Interpolation takes the **shortest arc**, and the pole is the proof. It sits at −2.406 rad
+upright and +2.898 tucked — both trailing behind the skier, but 5.3 rad apart numerically. A
+plain lerp sweeps it *forward through the skier's chest*; the −0.98 rad short arc swings it
+the way a pole swings. Position blending had concealed this by shortening the pole instead.
 
-**Session 0003's environment note is wrong and has been corrected: `touch_path` *does*
-sustain a touch.**
+**Transition state (ADR-025).** `SkierAnimator` is an immutable struct of five `0...1` weights
+that `MountainScene` carries and advances each frame. Composing weights rather than running a
+state machine lets transitions overlap — landing while still tucked, crashing mid-flip —
+without enumerating the pairs.
 
-## The README now
+**Four new poses:** `carveLeft` / `carveRight` (the flex-and-extend halves of an edge change),
+`flipTuck` (knees to chest while rotating hard), `landing` (absorption on touchdown).
 
-Eight beats in `docs/screenshots/`, all 2622 × 1206 downscaled to 1748 px, all verified
-free of the dev panel by a pixel check:
+The carve rhythm is driven by `distanceM`, not a clock: no memory needed, speeds up with the
+skier for free, identical on replay at any frame rate.
 
-| Beat | Capture | Reading |
-|------|---------|---------|
-| 1 | Chamonix | Spring Slush · 10° · 17 km |
-| 2 | Reykjavík | Boilerplate · −6° · 35 km/h · 25 km |
-| 3 | Tokyo @ 2,800 m | Spring Slush · 5° · 3 km · night · 197 m @ 58 km/h |
-| 4 | Tokyo @ 5,200 m | Packed · −10° · **4 cm new** · 238 m @ 78 km/h |
-| 5 | Carving | Chamonix slush · 894 m @ 60 km/h |
-| 6 | **Tucked** | Chamonix slush · 1,276 m @ 72 km/h — first ever capture of the tuck |
-| 7 | Atmosphere | Reykjavík · Packed · 25 km |
-| 8 | Crash | collapsed on the slope, EDGE full red |
+## Numbers worth keeping
 
-Beats 3 and 4 were **reshot this session**: the pending versions had the dev panel open,
-one with a *locked* peak selected directly beneath a caption about peaks unlocking by
-distance. Beats 5 and 6 are the first captures of either state with the real rig.
+- Transition rates were set against **measured per-frame joint travel**, not by feel. At
+  `tuckIn = 17` the head crossed 5.2 points in one frame at a 30-point body — that reads as a
+  cut, not a fold. At 12 it is 4.0, and every joint holds 3.2–6.4× headroom below what a
+  single-frame switch would move it.
+- The carve pair spans only 10% of body height, but the pole tip travels ~10 points against
+  the body's 3. A first pass at half these amplitudes measured fine and was invisible on
+  screen.
+- Widest shortest-arc separation in the rig is the pole between `carveRight` and `flipTuck`
+  at 1.49 rad — 1.65 rad of headroom below π, where shortest-arc would start picking the
+  wrong side. A test asserts that margin.
 
-The 3/4 pairing is the strongest thing in the README: same weather, same moment, 2,400 m
-apart — 5 °C slush becomes −10 °C packed, **0 cm new becomes 4 cm** because up there the
-same precipitation falls as snow, and top speed goes 58 → 78 km/h on thinner air.
+## Verified on the simulator
 
-## T-115 — mute button (new, done)
+Three genuinely distinct shapes captured on a live app, including a **mid-transition frame**
+— the first one that could exist, and the T-111 proof: every limb full length and connected,
+pole correctly swept behind. Also 46 frames of the carve rhythm (flexion, extension, pole
+swing), and a stationary skier holding exact `upright` with no sway.
 
-Requested mid-session. One tap silences the synthesised wind and edge noise; bottom-trailing
-so it clears the card, the HUD, the dev panel, and a resting thumb.
+## Not verified on the simulator
 
-Lives in a shared `AudioSettings`, **not** on the scene: `GameView` builds a fresh
-`MountainScene` every body evaluation while `SpriteView` keeps presenting the old one until
-`sceneID` changes, so a flag passed at construction lands on a scene nobody sees. Muting
-zeroes the gains rather than stopping the engine — no restart click. Haptics untouched.
-Persists across relaunch. T-204 should absorb it into a real settings screen.
+**Air, flip, landing absorption and crash collapse were never captured on screen.** Roughly
+100 screenshots across six attempts; the touch never overlapped a jump. They are covered
+headlessly instead, by `SkierAnimatorRunTests` driving the *real* simulation over generated
+terrain — seed 17 reaches air 1.00, flip 1.00, landing 1.00 and crash 1.00, with bone rigidity
+and joint continuity asserted on every frame of six descents across all six snow states.
 
-## The push
+The final rate softening was verified by test only; the on-screen captures predate it. Only
+six easing constants changed — poses, blend maths and composition order are byte-identical.
 
-`T-112` says "then push", and its pre-publish gate is now satisfied — eight live captures
-with real data. **The push was not performed**, because publishing to a public repo is the
-user's call and was not asked for this session. It is a one-line action whenever wanted.
+Also still unverified from earlier sessions: haptics and procedural audio (no taptic engine in
+the simulator, needs T-109), and landscape-right safe area.
 
-## Still unverified
+## T-116 — a run can stall to a dead stop (new, open)
 
-- **Haptics and procedural audio.** No taptic engine in the simulator. Needs T-109. The
-  mute button's *audio* path was verified on the simulator; its haptic non-interference was
-  reasoned from the code, not measured.
-- **Landscape-right safe area.** Landscape-left only, still.
-- **Mid-blend bone rigidity (T-111).** `blended(toward:amount:)` shortens bones at
-  intermediate `t`. Still unobservable on screen: `tuckCompression` is binary, so no
-  intermediate `t` is ever drawn.
+Found while verifying. The skier loses all speed on a flat and sits at **0 km/h indefinitely**:
+no crash, no summary, and no input that can restore momentum. Reproduced at 894 m and 913 m.
+Pre-existing simulation behaviour, untouched by this session.
+
+**This corrects ADR-023.** That ADR blamed Session 0003's "frozen at 894 m / 0 km/h" on a
+stale process. Session 0005 reproduced a dead stop at *exactly 894 m* on a freshly launched,
+demonstrably live app — and since the terrain is deterministic, a run that always dies at the
+same place is the simulation stalling, not a process freezing. ADR-023's conclusion still
+stands (the tuck renders; concurrent capture is still mandatory), but the diagnostic now needs
+a third branch — see the amendment in `DECISIONS.md`.
 
 ## Environment notes
 
-- **`touch_path` sustains a touch.** Repeated identical points spaced by `dt_ms`. Screenshot
-  it *concurrently* — a backgrounded `sleep N && xcrun simctl io booted screenshot` issued in
-  the same tool batch as the touch.
-- **Confirm the app is actually ticking before measuring anything.** Two captures a few
-  seconds apart; if distance and speed are identical, it is a stale process, not a bug.
-  Relaunch with `xcrun simctl terminate/launch booted com.whiteout.game`.
+- **Two identical captures no longer prove a stale process.** Check the readouts: a *stalled*
+  run is 0 km/h with a near-empty EDGE meter, full opacity and an upright pose; a *crash* is
+  0 km/h with a full meter, 75% alpha and the collapsed pose; a stale process is anything else
+  frozen. Relaunch with `xcrun simctl terminate/launch booted com.whiteout.game`.
+- **`touch_path` sustains a touch**, but landing it inside a capture window is unreliable —
+  it succeeded twice in eight attempts this session. `dt_ms` on the *first* point is **not** a
+  pre-delay; scheduling a hold to start later that way does not work. Best results came from
+  backgrounding the capture loop and issuing the touch in the same tool batch.
+- **zsh `nomatch` will abort a `&&` chain**: `rm -f foo_*.png` with no matches kills the rest
+  of the command. Cost one silent no-op capture run this session.
 - The build lands in `./build/Build/Products/Debug-iphonesimulator/Whiteout.app`
   (`verify.sh` passes `-derivedDataPath build`), **not** DerivedData.
 - **`timeout` does not exist on macOS.** Use `gtimeout` or no wrapper.
-- Screenshots need `sips -r -90`; device portrait, app landscape.
+- Screenshots need `sips -r -90`; device portrait, app landscape. ImageMagick and Python PIL
+  are both available; `montage` fails on font lookup, so build contact sheets with PIL.
+- The skier's screen x **shifts right with speed** (`cameraLead`), so a fixed crop window will
+  lose it. Locate it as the darkest pixel cluster below the conditions card.
 - Dev panel taps in device points (402 × 874): gear `(366, 776)`, Chamonix `(108, 749)`,
   Reykjavík `(71, 750)`, Tokyo `(35, 760)`, The Resort `(322, 747)`, Thin Air `(188, 738)`,
   mute `(56, 775)`. Miami is clipped off the bottom of the picker and is not tappable.
@@ -107,10 +119,9 @@ user's call and was not asked for this session. It is a one-line action whenever
 
 ## Next
 
-**T-102 — skier animation states** is the largest remaining M1 item and is unblocked.
-T-111 (rig blending in angle space) is worth pairing with it, since T-102 will introduce the
-intermediate blend values that make T-111's bone shortening visible for the first time.
+**T-105 (crash + run-summary flow)** is now unblocked by T-102 and is the natural follow-on —
+it also gives T-116 somewhere to resolve to, since a stalled run needs the same summary a
+crashed one does.
 
-T-103 and T-106 remain unblocked and independent. T-114 (`GameView` rebuilding the scene
-every body evaluation) is small, real, and was last session's prime suspect — worth clearing
-so it never misleads anyone again.
+**T-114** (`GameView` rebuilds the scene every body evaluation) is still small, real and
+unblocked. **T-103** and **T-106** remain unblocked and independent.

@@ -241,3 +241,63 @@ broken.
 **Rejected.** Adding a debug launch argument to force `isHolding`. It would have made the
 tuck photographable while leaving the real fault — the measurement method — in place, and
 it puts a physics-affecting switch in the shipping binary to serve a screenshot.
+
+### ADR-024 — The rig blends in angle space; poses are outputs, never inputs to a blend
+**Decision.** `RigAngles` — the joint angles — is the canonical pose representation. All
+interpolation happens on angles, and `SkierPose` (joint positions) is produced by solving the
+bone chain once, at the end. `SkierPose.blended(toward:amount:)` and `RigPoint.blended` are
+deleted rather than deprecated. Angle interpolation takes the **shortest arc**.
+**Why.** Blending joint positions moves each joint along a straight chord, and a chord is
+shorter than the arc the joint actually travels, so every bone contracts at intermediate `t`
+and springs back at both ends. The old test suite could not see this: it asserted rigidity
+only on the four *authored* poses, which are rigid under any blending scheme. Solving from
+angles makes bone lengths constants of the solver — rigid at every `t` by construction rather
+than by tolerance. The type-level half matters as much as the maths: a pose that carries no
+blend method cannot be blended wrongly by the next caller.
+**Why shortest arc.** The pole sits at −2.406 rad upright and +2.898 tucked. Both trail behind
+the skier; numerically they are 5.3 rad apart, so a plain lerp sweeps the pole *forward through
+the skier's chest* and back. The −0.98 rad short arc swings it the way a pole swings. Position
+blending concealed this by shortening the pole instead of rotating it the long way.
+**Consequence.** The joint-flip hazard that originally argued for position blending is real in
+general and absent here — it needs a bone whose authored angles are ≥ π apart. The widest in
+this rig is the pole between `carveRight` and `flipTuck` at 1.49 rad, leaving 1.65 rad of
+headroom. `RigAnglesTests` asserts that margin so a future pose cannot quietly spend it.
+Rigidity is now checked across all 56 ordered pose pairs at 51 samples each, and across every
+frame of six real headless descents.
+
+### ADR-025 — Transition state lives in the feel layer, in a value the caller carries
+**Decision.** `SkierAnimator` is an immutable struct of `0...1` weights that the scene carries
+between frames and advances with `advanced(for:cues:landingImpact:delta:)`. It reads
+`SkierState` and `FeelCues` and writes to neither. The frame's pose is composed by blending
+weights, not by selecting a state from a machine.
+**Why here.** Movement is the travel between poses, and travel needs memory of how far along
+it is. `SkierSimulation` cannot hold it: a landing leaves no trace in `SkierState` once
+`isGrounded` flips back, and a decay timer in the simulation would put presentation inside the
+thing a server re-simulates to verify a score. The feel layer is where presentation memory
+belongs (ADR-010, and the same rule `FeelModel` already follows). `delta` enters here and
+never reaches the simulation, so replay is untouched — `runsAreDeterministic` asserts a run is
+reproducible frame-for-frame from its seed.
+**Why weights, not a state machine.** Composing weights lets two transitions overlap — landing
+while still holding a tuck, crashing mid-flip — without enumerating the pairs. A machine would
+need an explicit edge for each, and the combinations are exactly where the old rig snapped.
+**Consequence.** The carve rhythm is driven by `distanceM` rather than by a clock, so it needs
+no memory at all, speeds up with the skier for free, and is identical on replay at any frame
+rate. Transition rates were set against measured per-frame joint travel, not by feel alone: at
+`tuckIn = 17` the head crossed 5.2 points in one frame at a 30-point body, which reads as a cut
+rather than a fold. At 12 it is 4.0, with every joint holding 3.2–6.4× headroom below what a
+single-frame switch would move it.
+
+### ADR-023 amendment (session 0005) — the 894 m reading has a simpler cause
+ADR-023 attributed one of Session 0003's two faults to "a stale process, frozen at 894 m /
+0 km/h". Session 0005 reproduced a dead stop at **exactly 894 m**, and again at 913 m, on a
+freshly launched, demonstrably live app. The terrain is deterministic, so a run that always
+loses its last speed at the same place is the *simulation* stalling, not a process freezing.
+**What this changes.** ADR-023's conclusion stands and was re-confirmed directly this session:
+the tuck renders under a sustained hold, now including a mid-transition capture. Concurrent
+capture is still the only valid way to measure held input. But the diagnostic advice needs a
+third branch: two identical captures a few seconds apart mean the app is stale **or** the run
+has stalled — check the speed readout and the EDGE meter before concluding either. A stalled
+run reads 0 km/h with an almost empty EDGE meter and a fully opaque upright skier; a crash
+reads 0 km/h with a full meter, 75% alpha and the collapsed pose.
+**Consequence.** The stall is now T-116. It is a soft-lock: no crash, no summary, no input
+that can restore momentum.
