@@ -36,17 +36,18 @@ The weather-to-physics engine and a playable prototype.
 
 The game looks and feels like a product. No server, no money.
 
-| ID | Task | Done when | Deps |
-|----|------|-----------|------|
-| T-101 | Skier character art + rig | Real silhouette replaces the capsule; readable at speed | — |
-| T-102 | Skier animation states | Tuck, carve L/R, air, flip, land, crash all transition cleanly | T-101 |
-| T-103 | Art direction pass | Atmospheric Realism reference set agreed and applied; volumetric light, depth of field | — |
-| T-104 | Snow surface treatment | Powder/crust/ice visually distinct at a glance, not just in the HUD | T-103 |
-| T-105 | Crash + run-summary flow | Crash reads clearly, summary shows distance/air/flips/conditions, restart is one tap | T-102 |
-| T-106 | Audio pass | Layered wind, edge, impact, ambience; mix balanced against the procedural base | — |
-| T-107 | Main menu + drop-in flow | Conditions card as the hero; start, settings, peak select | T-105 |
-| T-108 | Device performance pass | Locked 120 Hz on ProMotion, no frame drops in a whiteout | T-103 |
-| T-109 | **Gate: internal TestFlight** | Signed build installed and played on real hardware; haptics verified | T-101…T-108 |
+| ID | Task | Done when | Deps | Status |
+|----|------|-----------|------|--------|
+| T-101 | Skier character art + rig | Real silhouette replaces the capsule; readable at speed | — | doing |
+| T-102 | Skier animation states | Tuck, carve L/R, air, flip, land, crash all transition cleanly | T-101 | todo |
+| T-103 | Art direction pass | Atmospheric Realism reference set agreed and applied; volumetric light, depth of field | — | todo |
+| T-104 | Snow surface treatment | Powder/crust/ice visually distinct at a glance, not just in the HUD | T-103 | todo |
+| T-105 | Crash + run-summary flow | Crash reads clearly, summary shows distance/air/flips/conditions, restart is one tap | T-102 | todo |
+| T-106 | Audio pass | Layered wind, edge, impact, ambience; mix balanced against the procedural base | — | todo |
+| T-107 | Main menu + drop-in flow | Conditions card as the hero; start, settings, peak select | T-105 | todo |
+| T-108 | Device performance pass | Locked 120 Hz on ProMotion, no frame drops in a whiteout | T-103 | todo |
+| T-109 | **Gate: internal TestFlight** | Signed build installed and played on real hardware; haptics verified | T-101…T-108 | todo |
+| T-110 | Fullscreen + safe-area pass | Edge-to-edge canvas on every device from iPhone X on; HUD and cards clear the notch and home indicator in both landscape orientations | — | done |
 
 ## M2 — Game Systems
 

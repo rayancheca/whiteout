@@ -20,43 +20,63 @@ struct GameView: View {
     @State private var showDevTools = false
 
     var body: some View {
+        // The reader deliberately keeps its safe area, which is the only way
+        // `safeAreaInsets` reports real numbers — applying `ignoresSafeArea` above it
+        // zeroes them, and the readouts end up under the Dynamic Island.
+        //
+        // So the split is: overlays inherit the inset region for free, and only the canvas
+        // opts out of it. The scene is handed the reconstructed full display size, because
+        // it is built once from that size and would otherwise place the horizon against a
+        // rectangle narrower than the screen it renders into.
         GeometryReader { geometry in
+            let insets = geometry.safeAreaInsets
+            let displaySize = CGSize(
+                width: geometry.size.width + insets.leading + insets.trailing,
+                height: geometry.size.height + insets.top + insets.bottom
+            )
+
             ZStack(alignment: .topLeading) {
-                SpriteView(scene: makeScene(size: geometry.size))
+                SpriteView(scene: makeScene(size: displaySize))
                     .id(sceneID)
                     .ignoresSafeArea()
 
-                RunHUD(telemetry: telemetry, physics: store.conditions.physics)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 24)
-                    .allowsHitTesting(false)
-
-                ConditionsCard(conditions: store.conditions, usingFallback: store.usingFallback)
-                    .padding(20)
-
-                // Location and elevation pickers are development scaffolding. Four
-                // competing elements do not fit a 402pt-tall landscape screen, and
-                // leaving them always-visible hid the game's actual layout behind
-                // tools that will not ship.
-                DevPanel(
-                    isExpanded: $showDevTools,
-                    origin: store.origin,
-                    peak: store.peak,
-                    unlockedPeaks: store.unlockedPeaks,
-                    onSelectOrigin: { origin in
-                        store.origin = origin
-                        Task { await reload() }
-                    },
-                    onSelectPeak: { peak in
-                        store.peak = peak
-                        Task { await reload() }
-                    }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(20)
+                overlays
             }
         }
         .task { await reload() }
+    }
+
+    private var overlays: some View {
+        ZStack(alignment: .topLeading) {
+            RunHUD(telemetry: telemetry, physics: store.conditions.physics)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 24)
+                .allowsHitTesting(false)
+
+            ConditionsCard(conditions: store.conditions, usingFallback: store.usingFallback)
+                .padding(20)
+
+            // Location and elevation pickers are development scaffolding. Four
+            // competing elements do not fit a 402pt-tall landscape screen, and
+            // leaving them always-visible hid the game's actual layout behind
+            // tools that will not ship.
+            DevPanel(
+                isExpanded: $showDevTools,
+                origin: store.origin,
+                peak: store.peak,
+                unlockedPeaks: store.unlockedPeaks,
+                onSelectOrigin: { origin in
+                    store.origin = origin
+                    Task { await reload() }
+                },
+                onSelectPeak: { peak in
+                    store.peak = peak
+                    Task { await reload() }
+                }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            .padding(20)
+        }
     }
 
     private func makeScene(size: CGSize) -> MountainScene {

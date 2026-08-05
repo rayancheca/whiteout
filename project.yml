@@ -27,9 +27,13 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         # Landscape only: an endless descent needs horizontal sightline to read terrain
         # ahead, which is why every game in this genre ships landscape.
-        INFOPLIST_KEY_UISupportedInterfaceButtons: ""
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UIStatusBarHidden: YES
         INFOPLIST_KEY_UIRequiresFullScreen: YES
+        # Without a UILaunchScreen the system runs the app in legacy compatibility mode and
+        # letterboxes it — measured at 564x376 pt inside an 874x402 pt iPhone 17 Pro, so
+        # 36% of the width was black bars. This key generates the empty launch-screen
+        # dictionary that opts every device from iPhone X onward into the full display.
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Whiteout uses your approximate location to build today's mountain from your real local weather. Your position is rounded to a ~20km area before it ever leaves the device."
         TARGETED_DEVICE_FAMILY: "1,2"

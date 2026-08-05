@@ -138,3 +138,19 @@ turn; volatile state goes in files read on demand.
 **Why.** Off-machine backup, full history across sessions, and CI on every push.
 **Consequence.** Game design and monetization strategy are visible while building. Accepted
 knowingly. No secrets, keys, or private data may ever be committed.
+
+### ADR-017 — A generated `UILaunchScreen` is what makes the app fullscreen
+**Decision.** `INFOPLIST_KEY_UILaunchScreen_Generation: YES` in `project.yml`. The canvas
+ignores the safe area; the overlays inherit it.
+**Why.** Without a launch-screen entry iOS runs the app in legacy compatibility mode and
+letterboxes it. Measured on iPhone 17 Pro: **564 × 376 pt inside an 874 × 402 pt display**,
+so 36% of the width was black bars and the game was rendering into two thirds of the screen
+it had. Nothing in the code is wrong when this happens, which is exactly why it survived a
+whole milestone — the bug lives in the *absence* of a plist key, so there is no line to read.
+**Consequence.** Scene width grew 55%, which moves `baselineY`, the horizon, and how much
+terrain is on screen. Skier scale for T-101 had to be chosen against the corrected frame,
+which is why this was done first.
+**Rejected.** Reading insets from a `GeometryReader` that has `ignoresSafeArea` applied
+above it — that zeroes `safeAreaInsets`, and the first attempt put the conditions card under
+the Dynamic Island. The reader must *keep* its safe area and the canvas alone opts out,
+reconstructing the full display size as `size + insets`.

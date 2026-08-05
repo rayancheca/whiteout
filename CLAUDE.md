@@ -98,3 +98,18 @@ freely; a session should accomplish a lot.
 
 Report honestly. If something is untested, say so — haptics cannot be verified in the
 simulator, and claiming otherwise poisons every later session that trusts the log.
+
+## Handling mid-session input
+
+When the user raises something while a task is in flight, **do not abandon the task**. A
+half-finished deliverable is the most expensive thing a session can produce. Instead:
+
+1. **Classify it** — bug, feature, constraint, or a correction to how the work is done.
+2. **Place it.** Anything that is not a correction becomes a task in `docs/ROADMAP.md` with
+   a real ID and `deps`. Writing it down is what makes it survive the session.
+3. **Sequence it.** Do it now *only* if it blocks or cheapens the current task; otherwise it
+   waits its turn. Say which, and why.
+4. **Say where it went**, then resume.
+
+The one thing never to do is silently widen the current task to absorb it. That is how a
+session ends with two things half-built and nothing green.
