@@ -36,56 +36,70 @@ simulator against **live Open-Meteo data**. No mockups, no seeded fixtures.
 
 ![Chamonix spring slush](docs/screenshots/01-chamonix-slush.png)
 
-Launching with Chamonix selected. Real forecast at 2,800 m in August: **12 °C, spring
-slush, 16 km visibility.** The conditions card is written in ski-report register, and the
-snowpack it names is the one the physics is already using.
+Launching with Chamonix selected. Real forecast lifted to 2,800 m in August: **10 °C,
+spring slush, 17 km visibility.** The conditions card is written in ski-report register,
+and the snowpack it names is the one the physics is already using.
 
 ### 2. A different climate — Reykjavík
 
-![Reykjavik packed](docs/screenshots/03-reykjavik.png)
+![Reykjavik boilerplate](docs/screenshots/02-reykjavik-boilerplate.png)
 
-Switching origin re-resolves everything. **−5 °C, 30 km/h wind, 45 km visibility** —
-arctic clarity, a different terrain seed, and a different sky computed from the same
-palette function.
+Switching origin re-resolves everything. **−6 °C, 35 km/h wind, 25 km visibility** —
+boilerplate, because that wind is *why* the snow is scoured, not decoration alongside it.
+A different terrain seed and a different sky come from the same palette function.
 
-### 3. Altitude changes the game — the same weather at 2,800 m
+### 3. Altitude changes the game — Tokyo at 2,800 m
 
-![The Resort, packed](docs/screenshots/04-resort-packed.png)
+![The Resort at night](docs/screenshots/03-resort-2800m.png)
 
-Peaks unlock by distance skied. At The Resort, the player's real local weather resolves to
-**−4 °C, packed** — "firm, even, predictable."
+Peaks unlock by distance skied. Tokyo's real weather, lifted to The Resort: **5 °C, spring
+slush, 3 km visibility**, at night — the sky is dark because it is actually dark there.
+**197 m at 58 km/h.**
 
 ### 4. The same weather at 5,200 m
 
-![Thin Air, boilerplate](docs/screenshots/05-thinair-boilerplate.png)
+![Thin Air, packed](docs/screenshots/04-thinair-5200m.png)
 
-Identical weather, identical moment, 2,400 m higher: **−19 °C, boilerplate** — "scoured
-hard, edges only." Thinner air also reduces drag, so this peak is genuinely faster and less
-forgiving. Altitude is unlocked by play and never sold, precisely because it changes speed.
+Identical weather, identical moment, 2,400 m higher: **−10 °C, packed** — "firm, even,
+predictable." Fifteen degrees of lapse rate turns slush into a surface that holds an edge.
+Look at the NEW field, too: 0 cm at the resort, **4 cm here.** Same precipitation, different
+phase, because up here it is cold enough to fall as snow. Thinner air also reduces drag —
+**238 m at 78 km/h** against 58 below. Altitude is unlocked by play and never sold,
+precisely because it changes speed.
 
 ### 5. Playing — carving
 
-![Carving](docs/screenshots/10-feel.png)
+![Carving](docs/screenshots/05-carving.png)
 
 Releasing the input carves: speed scrubs, spray comes off the edges, and the ski trail
-records the line taken. **190 m at 59 km/h.** The EDGE meter tracks how close the skier is
-to losing an edge.
+records the line taken. **894 m at 60 km/h** on Chamonix slush. The EDGE meter tracks how
+close the skier is to losing an edge.
 
 ### 6. Playing — tucked, flat out
 
-![Tucking](docs/screenshots/11-tuck-feel.png)
+![Tucking](docs/screenshots/06-tuck.png)
 
-Holding tucks: drag drops, speed lines stream, the silhouette compresses. **697 m at
-69 km/h.** Instability is now filling — on this snowpack that is survivable, on boilerplate
-it would already be over.
+Holding tucks: the skier folds down over the skis, drag drops, and speed lines stream past.
+**1,276 m at 72 km/h.** Twenty-two metres later this run was over — 10 °C spring slush will
+give you the speed and then take the edge. The identical hold on powder ran from 43 to
+80 km/h with the meter barely moving. That difference *is* the game.
 
 ### 7. Generated atmosphere
 
-![Atmospheric perspective](docs/screenshots/06-final.png)
+![Atmospheric perspective](docs/screenshots/07-atmosphere.png)
 
 No sky assets exist in this project. Every colour is computed in OKLCH from sun altitude,
 cloud cover, precipitation and snow state, and aerial perspective dissolves distant ridges
-in proportion to real visibility.
+in proportion to real visibility — here Reykjavík's 25 km, which keeps the far ridgelines
+legible instead of swallowing them. Note the snowpack has moved to **packed** since beat 2:
+same city, hours later, live data.
+
+### 8. Catching an edge
+
+![Caught an edge](docs/screenshots/08-crash.png)
+
+Push the tuck too far and the run ends: the skier collapses and comes to rest along the
+true surface angle, EDGE full red. One tap drops back in.
 
 ---
 

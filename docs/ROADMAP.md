@@ -41,8 +41,9 @@ The game looks and feels like a product. No server, no money.
 | T-101 | Skier character art + rig | Real silhouette replaces the capsule; readable at speed | — | done |
 | T-102 | Skier animation states | Tuck, carve L/R, air, flip, land, crash all transition cleanly | T-101 | todo |
 | T-111 | Rig blending in angle space | Bones stay rigid *mid-blend*, not just in the authored poses | T-101 | todo |
-| T-113 | **Held input never sustains a tuck** | Pressing and holding produces the tuck pose on screen and speed rises; `isHolding` stays true for the duration of the press | T-101 | todo |
-| T-112 | Refresh README screenshots | All 8 recaptured fullscreen with the real skier; caption 6 no longer describes the deleted squash; then push | T-101, T-110, T-113 | blocked |
+| T-113 | ~~Held input never sustains a tuck~~ — **not a defect** | Closed: the tuck renders and speed rises (43→71→80 km/h) under a sustained hold. The Session 0003 report was a measurement artefact — see ADR-023 | T-101 | done |
+| T-112 | Refresh README screenshots | All 8 recaptured fullscreen with the real skier; caption 6 no longer describes the deleted squash; then push | T-101, T-110, T-113 | done |
+| T-114 | `GameView` rebuilds the scene every body evaluation | `makeScene` no longer constructs a `MountainScene` (and a `TerrainGenerator`) on every SwiftUI re-render; the comment at `GameView.swift:83` stops claiming a caching behaviour that does not exist | — | todo |
 | T-103 | Art direction pass | Atmospheric Realism reference set agreed and applied; volumetric light, depth of field | — | todo |
 | T-104 | Snow surface treatment | Powder/crust/ice visually distinct at a glance, not just in the HUD | T-103 | todo |
 | T-105 | Crash + run-summary flow | Crash reads clearly, summary shows distance/air/flips/conditions, restart is one tap | T-102 | todo |

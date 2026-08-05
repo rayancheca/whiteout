@@ -219,3 +219,25 @@ on it, and would additionally retire the question: a reader who sees the tuck do
 has no reason to report that it does not happen.
 **Consequence.** Four verified captures sit unused in `docs/screenshots/pending/` until
 T-113 lands. That is the cost, and it is smaller than publishing a false claim.
+
+### ADR-023 — A held input is verified by concurrent capture, never by sequential capture
+**Decision.** Any check of held-input behaviour on the simulator must (a) confirm the app
+is actually ticking first, and (b) fire the screenshot *concurrently* with the hold, not
+after it. The working recipe is `touch_path` with repeated identical points spaced by
+`dt_ms`, issued in the same batch as a backgrounded `xcrun simctl io booted screenshot`
+that sleeps into the middle of the hold.
+**Why.** Session 0003 concluded that a held input never sustains the tuck. It does. Two
+methodological faults produced that conclusion, and both are invisible from the transcript.
+First, a hold call returns *after* touch-up, so a screenshot taken on the next line always
+photographs the released, upright pose — the pose can only ever look unchanged. Second, the
+app under test was a stale process from a previous session, frozen at 894 m / 0 km/h; a
+frozen SpriteKit app photographs exactly like a live one that ignores input, and it is also
+what produced the "speed only drifted 61 → 63 km/h over a 15 s press" reading.
+**Consequence.** `touch_path` *does* sustain a touch — the Session 0003 environment note
+saying otherwise is wrong and is corrected. Against a freshly launched app, one hold took
+the skier from 43 to 71 to 80 km/h with the tuck pose rendered throughout and the EDGE
+meter climbing. T-113 is closed as not-a-defect; no code was changed because none was
+broken.
+**Rejected.** Adding a debug launch argument to force `isHolding`. It would have made the
+tuck photographable while leaving the real fault — the measurement method — in place, and
+it puts a physics-affecting switch in the shipping binary to serve a screenshot.
