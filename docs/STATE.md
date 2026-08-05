@@ -7,8 +7,9 @@
 
 ## Where the project is
 
-**143 tests passing** across 22 suites in ~70 ms. iOS build green. Working tree clean,
-**11 commits ahead of `origin/main` and not yet pushed**.
+**143 tests passing** across 22 suites in ~70 ms. iOS build green. Working tree clean and
+**pushed to `origin/main`** — the eleven commits that had been held back since T-110 went up
+with this session's work.
 
 T-102 and T-111 are **done**, and they were the same fix. The rig now blends in angle space
 and carries transition state between frames, so the skier moves between poses instead of
