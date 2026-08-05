@@ -41,6 +41,11 @@ final class MountainScene: SKScene {
     private var trail: [(distance: Double, altitude: Double)] = []
 
     private var distanceMetres: Double { skier.distanceM }
+
+    /// Half the on-screen ski length, converted back into world metres.
+    private var drawnSkiHalfLengthM: Double {
+        Double(SkierNode.bodyHeightPoints / pointsPerMetre) * SkierRig.skiLength / 2
+    }
     private var skierScreenXFraction: CGFloat {
         skierXCruising + (skierXFlatOut - skierXCruising) * CGFloat(cues.cameraLead)
     }
@@ -51,7 +56,10 @@ final class MountainScene: SKScene {
     private var ridgeLayers: [RidgeLayer] = []
     private var slopeNode = SKShapeNode()
     private var slopeEdgeNode = SKShapeNode()
-    private var skierNode = SKShapeNode()
+    /// Built in `init` rather than in a `build…` method: unlike the terrain and sky layers
+    /// there is nothing about it that can change mid-run, since the palette is fixed once
+    /// conditions resolve.
+    private let skierNode: SkierNode
     private var trailNode = SKShapeNode()
     private var snowfallNode: SKEmitterNode?
     private var sprayNode: SKEmitterNode?
@@ -85,6 +93,7 @@ final class MountainScene: SKScene {
         self.terrain = terrain
         self.skier = SkierState.start(on: terrain)
         self.cameraHeightM = terrain.height(at: 0)
+        self.skierNode = SkierNode(palette: conditions.palette)
         super.init(size: size)
         scaleMode = .resizeFill
         anchorPoint = .zero
@@ -317,7 +326,8 @@ final class MountainScene: SKScene {
         ]
 
         ridgeLayers = specifications.enumerated().map { index, spec in
-            let base = ridgeColour(depth: spec.depth)
+            let palette = conditions.palette
+            let depth = Double(spec.depth)
 
             let node = SKShapeNode()
             node.lineWidth = 0
@@ -325,9 +335,13 @@ final class MountainScene: SKScene {
             // A vertical gradient rather than a flat fill. Real ridges are lit along their
             // upper faces and sink into shadow at the base; a single flat colour per band
             // is the tell that reads as clip-art.
+            //
+            // Both ends come from the palette rather than being mixed here: the nearest of
+            // these bands is what the skier is drawn against, so the legibility test in
+            // `WhiteoutCore` has to be able to compute the same colours.
             node.fillTexture = SKTexture(image: verticalGradientImage(
-                top: base.mixed(with: conditions.palette.snowLit.uiColor, amount: 0.28 * (1 - spec.depth * 0.5)),
-                bottom: base.mixed(with: .black, amount: 0.22)
+                top: palette.ridgeCrest(depth: depth).uiColor,
+                bottom: palette.ridgeBase(depth: depth).uiColor
             ))
             node.fillColor = .white
             worldNode.addChild(node)
@@ -373,12 +387,6 @@ final class MountainScene: SKScene {
         }
     }
 
-    private func ridgeColour(depth: CGFloat) -> UIColor {
-        let palette = conditions.palette
-        let dissolve = min(0.98, CGFloat(palette.depthDissolve) * depth)
-        return palette.rockNear.uiColor.mixed(with: palette.atmosphere.uiColor, amount: dissolve)
-    }
-
     private func buildSlope() {
         slopeNode.removeFromParent()
         slopeEdgeNode.removeFromParent()
@@ -402,11 +410,6 @@ final class MountainScene: SKScene {
 
     private func buildSkier() {
         skierNode.removeFromParent()
-
-        let body = CGRect(x: -5, y: 0, width: 10, height: 20)
-        skierNode = SKShapeNode(path: CGPath(roundedRect: body, cornerWidth: 5, cornerHeight: 5, transform: nil))
-        skierNode.fillColor = conditions.palette.rockNear.uiColor.mixed(with: .black, amount: 0.45)
-        skierNode.lineWidth = 0
         skierNode.zPosition = 20
         worldNode.addChild(skierNode)
     }
@@ -581,7 +584,9 @@ final class MountainScene: SKScene {
         spray.particleBirthRate = isCarving
             ? CGFloat(conditions.physics.sprayDensity * 260 * speedFraction)
             : 0
-        spray.position = skierNode.position
+        // Emitted from the edges, not from the node's origin. Snow is thrown by the skis;
+        // parking the plume on the body centre puts it at the skier's waist.
+        spray.position = skierNode.contactPoint(for: SkierRig.pose(for: skier, cues: cues))
     }
 
     private func layoutRidges() {
@@ -662,10 +667,22 @@ final class MountainScene: SKScene {
         let verticalOffset = CGFloat(skier.altitudeM - cameraHeightM) * pointsPerMetre
 
         skierNode.position = CGPoint(x: screenX, y: baselineY + verticalOffset)
-        skierNode.zRotation = CGFloat(skier.rotation)
-        // Tucking is readable in the silhouette before it is readable in the speed.
-        skierNode.yScale = 1 - 0.32 * CGFloat(cues.tuckCompression)
-        skierNode.alpha = skier.hasCrashed ? 0.55 : 1.0
+        // The rig's origin is the ski/snow contact point, so the whole figure pivots on its
+        // edges — which is what a skier actually does.
+        //
+        // On the ground the angle is re-derived over the length of the ski as *drawn*, not
+        // as simulated. The drawn skier is roughly nine times life size, so its ski spans
+        // about 17 m of terrain; at the physical 1.7 m contact angle it visibly refuses to
+        // lie on the slope under it. This reads simulation state and never writes to it, so
+        // the tape a server re-simulates is untouched.
+        skierNode.zRotation = skier.isGrounded && !skier.hasCrashed
+            ? CGFloat(terrain.surfaceAngle(at: skier.distanceM, halfLengthM: drawnSkiHalfLengthM))
+            : CGFloat(skier.rotation)
+        // Tucking is readable in the silhouette before it is readable in the speed. It used
+        // to be a 0.68 vertical squash, which shortens the standing shape without changing
+        // it; a tuck is a different shape, so the rig now poses the joints instead.
+        skierNode.apply(SkierRig.pose(for: skier, cues: cues))
+        skierNode.alpha = skier.hasCrashed ? 0.75 : 1.0
     }
 
     private func layoutTrail() {

@@ -67,9 +67,20 @@ public struct TerrainGenerator: Sendable {
     /// reads every sastruga as a cliff and launches off flat ground. Bridging is not a
     /// smoothing hack; it is what the equipment physically does.
     public func contactAngle(at x: Double) -> Double {
-        let skiHalfLengthM = 0.85
-        let rise = height(at: x + skiHalfLengthM) - height(at: x - skiHalfLengthM)
-        return atan2(rise, skiHalfLengthM * 2)
+        surfaceAngle(at: x, halfLengthM: 0.85)
+    }
+
+    /// The angle of a rigid plank of arbitrary length resting on the surface at `x`.
+    ///
+    /// Exists because the *drawn* skier is far larger than the simulated one. At the
+    /// renderer's scale the visible ski spans about 17 m of terrain while the physical ski
+    /// spans 1.7 m, so a ski drawn at the physical contact angle visibly fails to lie along
+    /// the slope beneath it — one end buried, the other in the air. Rendering asks for the
+    /// angle over the length it actually draws; physics keeps asking over 1.7 m.
+    public func surfaceAngle(at x: Double, halfLengthM: Double) -> Double {
+        let half = max(halfLengthM, 0.01)
+        let rise = height(at: x + half) - height(at: x - half)
+        return atan2(rise, half * 2)
     }
 
     /// Whether a jump feature starts in the metre beginning at `x`.

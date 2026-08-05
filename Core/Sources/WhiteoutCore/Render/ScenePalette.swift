@@ -11,10 +11,48 @@ public struct ScenePalette: Sendable, Equatable {
     public let snowLit: OKLCH
     public let snowShadow: OKLCH
     public let rockNear: OKLCH
+    /// The skier's body. Dark, and tied to the snow it is seen against.
+    public let skierBody: OKLCH
+    /// Light catching the skier's leading edges. Carries the read when the body cannot.
+    public let skierRim: OKLCH
     /// `0...1`. How completely distance dissolves geometry into atmosphere.
     public let depthDissolve: Double
     /// `0...1`. Overall scene brightness, for exposure and UI contrast decisions.
     public let exposure: Double
+}
+
+extension ScenePalette {
+
+    /// A distant ridge band, tinted toward the atmosphere in proportion to its depth.
+    ///
+    /// Lives here rather than in the renderer because it is the surface the skier is drawn
+    /// against, so the legibility guarantee has to be able to compute it. Keeping a second
+    /// copy in the scene is how the two quietly drift apart.
+    public func ridge(depth: Double) -> OKLCH {
+        rockNear.blended(toward: atmosphere, amount: min(0.98, depthDissolve * depth))
+    }
+
+    /// The lit upper face of a ridge band.
+    ///
+    /// Real ridges catch light along the top and sink into shadow at the base. A single flat
+    /// colour per band is the tell that reads as clip-art.
+    public func ridgeCrest(depth: Double) -> OKLCH {
+        ridge(depth: depth).blended(toward: snowLit, amount: 0.28 * (1 - depth * 0.5))
+    }
+
+    /// The shadowed base of a ridge band.
+    public func ridgeBase(depth: Double) -> OKLCH {
+        ridge(depth: depth).blended(toward: OKLCH(l: 0, c: 0, h: rockNear.h), amount: 0.22)
+    }
+
+    /// Depth of the nearest parallax band — the one the skier's body actually overlaps.
+    ///
+    /// Measured from the scene's own layout: the skier stands at 0.34 of screen height and
+    /// tops out near 0.42, while this band fills everything below 0.55. Reaching the sky
+    /// would take about 111 m of relative altitude, which no jump in the game produces. So
+    /// the sky is not a backdrop the skier is ever seen against, and testing contrast
+    /// against it measures nothing.
+    public static let skierBackdropDepth = 0.42
 }
 
 /// Generates the scene palette from mountain weather.
@@ -55,16 +93,66 @@ public enum PaletteGenerator {
 
         let exposure = min(1, max(0.08, sunExposure(sunAltitude: sun) * (1 - cloud * 0.30)))
 
+        let lit = snowLit(state: state, light: lightColour, cloud: cloud, exposure: exposure)
+        let shadow = snowShadow(zenith: zenithColour, exposure: exposure)
+
         return ScenePalette(
             skyZenith: zenithColour,
             skyHorizon: horizonColour,
             atmosphere: atmosphere,
             light: lightColour.desaturated(by: cloud * 0.65),
-            snowLit: snowLit(state: state, light: lightColour, cloud: cloud, exposure: exposure),
-            snowShadow: snowShadow(zenith: zenithColour, exposure: exposure),
+            snowLit: lit,
+            snowShadow: shadow,
             rockNear: OKLCH(l: 0.22 + exposure * 0.10, c: 0.018, h: 262),
+            skierBody: skierBody(snowShadow: shadow, zenith: zenithColour, exposure: exposure),
+            skierRim: skierRim(snowLit: lit, exposure: exposure),
             depthDissolve: dissolve,
             exposure: exposure
+        )
+    }
+
+    // MARK: - The skier
+    //
+    // The skier is the one object that must stay legible in *every* palette, and no single
+    // tone manages it. The backdrop it is drawn against is the nearest ridge band, whose
+    // lightness runs from about 0.25 at night to 0.59 at noon — the *middle* of the axis.
+    // The one place you cannot afford to be is near the middle, and anything anchored to
+    // `rockNear` lands there: `rockNear.l` spans only 0.228…0.320 while its backdrop spans
+    // 0.25…0.59, so it crosses straight through it. The old fill measured a separation of
+    // 0.02 against the near ridge at night, which is roughly one 8-bit code value.
+    //
+    // So the skier is drawn in two tones pinned near opposite ends of the lightness axis.
+    // Whatever the backdrop does, one of them is far from it. Hue and chroma still come from
+    // the weather, so the skier belongs to the day; only lightness is pinned.
+
+    /// Minimum perceptual lightness gap the skier must hold against its backdrop.
+    ///
+    /// Enforced by test rather than by intention — the palette is a continuous function of
+    /// weather, so the only way to know this holds everywhere is to assert it.
+    public static let skierContrastFloor = 0.20
+
+    private static func skierBody(snowShadow: OKLCH, zenith: OKLCH, exposure: Double) -> OKLCH {
+        // Deliberately almost flat across the whole weather range: this is the dark end of
+        // the axis and its job is to stay there. Floored above zero because a true black
+        // silhouette reads as a hole punched in the scene rather than as a person.
+        OKLCH(
+            l: 0.095 + exposure * 0.050,
+            // A skier in shadow is lit by skylight exactly as the snow is, so the body takes
+            // the sky's hue — a very dark indigo rather than a neutral. Muted, because
+            // fabric is nothing like as reflective as snow.
+            c: min(0.045, snowShadow.c * 0.55 + 0.010),
+            h: zenith.h
+        )
+    }
+
+    private static func skierRim(snowLit: OKLCH, exposure: Double) -> OKLCH {
+        // A rim is specular — it is the light source seen in an edge — so unlike `snowLit`
+        // it is not bound by exposure. As the scene darkens the rim climbs *further* above
+        // the snow, which is both physically right and the only thing that keeps the player
+        // findable at night. Held short of white so it reads as a lit edge and not as glow.
+        snowLit.blended(
+            toward: OKLCH(l: 1, c: 0, h: snowLit.h),
+            amount: 0.35 + 0.30 * (1 - exposure)
         )
     }
 

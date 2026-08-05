@@ -154,3 +154,41 @@ which is why this was done first.
 above it — that zeroes `safeAreaInsets`, and the first attempt put the conditions card under
 the Dynamic Island. The reader must *keep* its safe area and the canvas alone opts out,
 reconstructing the full display size as `size + insets`.
+
+### ADR-018 — The skier rig is a pure pose solver in `WhiteoutCore`
+**Decision.** `SkierRig` lives in Core: a normalised skeleton (1.0 = standing height, origin
+at the ski/snow contact point) and a pure `pose(for:cues:)`. `SkierNode` in `App/` renders it
+with SpriteKit. Colours are generated in `ScenePalette`, not chosen in the renderer.
+**Why.** It follows `FeelModel`'s precedent — presentation logic that reads simulation state
+and never writes to it (ADR-010). The payoff is that proportion, silhouette and legibility
+become unit-testable in ~30 ms with no simulator, which is how the colour defect below was
+found at all. It also keeps the pose reusable by a future server-side replay renderer.
+**Rejected.** Building the rig in the SpriteKit layer, which would have made every one of
+these properties verifiable only by screenshot.
+
+### ADR-019 — The skier is drawn against the near ridge, not the sky
+**Decision.** The legibility guarantee is asserted against `ridge(depth: 0.42)` and the snow,
+and the skier is drawn in two tones pinned near opposite ends of the lightness axis with a
+spread of ≥ 0.60. `ScenePalette` owns the ridge-band colours so the test can compute them.
+**Why.** Measured from the scene's own layout: the skier occupies 0.34–0.42 of screen height
+while the nearest parallax band fills everything below 0.55. Reaching the sky would need
+~111 m of relative altitude, which no jump produces. So the backdrop is that band, whose
+lightness runs 0.25–0.59 — the *middle* of the axis. Anything anchored to `rockNear` sits
+inside that range: the old fill separated from it by **0.02** at night, about one 8-bit code
+value. One tone cannot solve this, because the one place you cannot be is the middle. Two
+tones far apart always leave one of them far from any backdrop.
+**Rejected.** A single adaptive tone (unsatisfiable, per above). Also rejected: testing
+contrast against `skyHorizon`/`skyZenith` — the first version of this work did exactly that,
+passed, and was measuring a backdrop the skier is never seen against.
+
+### ADR-020 — The drawn ski bridges terrain over the length it is drawn
+**Decision.** When grounded, `zRotation` comes from
+`terrain.surfaceAngle(at:halfLengthM:)` over the *rendered* ski length, not from
+`skier.rotation`.
+**Why.** The drawn skier is about nine times life size, so its 34.5 pt ski spans ~17 m of
+terrain while physics computes contact over 1.7 m. Drawn at the physical angle the ski
+visibly refuses to lie on the slope — tip buried, tail in the air. This is the rendering
+analogue of ADR-012: a plank spans the surface it covers, and the drawn plank is longer.
+**Consequence.** Presentation-only and read-only, so the `(seed, input tape)` a server
+re-simulates is untouched. The placeholder capsule hid this because it had no long
+horizontal element to reveal it.

@@ -38,7 +38,7 @@ The game looks and feels like a product. No server, no money.
 
 | ID | Task | Done when | Deps | Status |
 |----|------|-----------|------|--------|
-| T-101 | Skier character art + rig | Real silhouette replaces the capsule; readable at speed | — | doing |
+| T-101 | Skier character art + rig | Real silhouette replaces the capsule; readable at speed | — | done |
 | T-102 | Skier animation states | Tuck, carve L/R, air, flip, land, crash all transition cleanly | T-101 | todo |
 | T-103 | Art direction pass | Atmospheric Realism reference set agreed and applied; volumetric light, depth of field | — | todo |
 | T-104 | Snow surface treatment | Powder/crust/ice visually distinct at a glance, not just in the HUD | T-103 | todo |
