@@ -1,0 +1,35 @@
+name: Whiteout
+options:
+  bundleIdPrefix: com.whiteout
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+packages:
+  WhiteoutCore:
+    path: Core
+
+targets:
+  Whiteout:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/Sources
+    dependencies:
+      - package: WhiteoutCore
+        product: WhiteoutCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.whiteout.game
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        # Landscape only: an endless descent needs horizontal sightline to read terrain
+        # ahead, which is why every game in this genre ships landscape.
+        INFOPLIST_KEY_UISupportedInterfaceButtons: ""
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UIStatusBarHidden: YES
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Whiteout uses your approximate location to build today's mountain from your real local weather. Your position is rounded to a ~20km area before it ever leaves the device."
+        TARGETED_DEVICE_FAMILY: "1,2"

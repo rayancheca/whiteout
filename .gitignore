@@ -1,0 +1,24 @@
+# Generated from project.yml by xcodegen — never edit or commit.
+*.xcodeproj
+*.xcworkspace
+
+# Build output
+build/
+.build/
+DerivedData/
+*.o
+*.dSYM
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Secrets — nothing sensitive may ever reach a public remote (ADR-016)
+.env
+.env.*
+*.p8
+*.p12
+*.mobileprovision
