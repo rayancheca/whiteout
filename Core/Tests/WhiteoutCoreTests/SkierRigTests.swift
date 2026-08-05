@@ -122,19 +122,55 @@ struct SkierRigSkeletonTests {
         #expect(pose.skiTip.y < pose.knee.y)
     }
 
-    @Test("every pose keeps limbs in front of or behind the body, never detached")
-    func limbsStayAttached() {
-        for pose in [SkierRig.upright, SkierRig.tuck, SkierRig.airborne, SkierRig.collapsed] {
-            let upperArm = hypot(pose.elbow.x - pose.shoulder.x, pose.elbow.y - pose.shoulder.y)
-            let forearm = hypot(pose.hand.x - pose.elbow.x, pose.hand.y - pose.elbow.y)
-            let thigh = hypot(pose.hip.x - pose.knee.x, pose.hip.y - pose.knee.y)
-            let shin = hypot(pose.knee.x - pose.boot.x, pose.knee.y - pose.boot.y)
-            // Limbs are rigid: no pose may stretch one past a plausible segment length.
-            #expect(upperArm > 0.05 && upperArm < 0.32)
-            #expect(forearm > 0.05 && forearm < 0.32)
-            #expect(thigh > 0.10 && thigh < 0.36)
-            #expect(shin > 0.10 && shin < 0.36)
+    @Test("bones are the same length in every pose")
+    func bonesAreRigid() {
+        // The test this replaces allowed each limb a range wide enough to admit two very
+        // different lengths, so it passed while the upper arm was 51% shorter in the tuck
+        // than standing and the forearm 67% longer. A tolerance band is not a rigidity
+        // check; comparing every pose against the standing one is.
+        func bones(_ pose: SkierPose) -> [String: Double] {
+            [
+                "shin": hypot(pose.knee.x - pose.boot.x, pose.knee.y - pose.boot.y),
+                "thigh": hypot(pose.hip.x - pose.knee.x, pose.hip.y - pose.knee.y),
+                "torso": hypot(pose.shoulder.x - pose.hip.x, pose.shoulder.y - pose.hip.y),
+                "upperArm": hypot(pose.elbow.x - pose.shoulder.x, pose.elbow.y - pose.shoulder.y),
+                "forearm": hypot(pose.hand.x - pose.elbow.x, pose.hand.y - pose.elbow.y),
+                "neck": hypot(pose.head.x - pose.shoulder.x, pose.head.y - pose.shoulder.y),
+                "pole": hypot(pose.poleTip.x - pose.hand.x, pose.poleTip.y - pose.hand.y),
+                "ski": pose.skiTip.x - pose.skiTail.x
+            ]
         }
+
+        let reference = bones(SkierRig.upright)
+        for (name, pose) in [
+            ("tuck", SkierRig.tuck),
+            ("airborne", SkierRig.airborne),
+            ("collapsed", SkierRig.collapsed)
+        ] {
+            for (bone, length) in bones(pose) {
+                let expected = reference[bone] ?? 0
+                #expect(
+                    abs(length - expected) < 0.005,
+                    "\(name) \(bone) is \(length), standing is \(expected)"
+                )
+            }
+        }
+    }
+
+    @Test("the head always overlaps the shoulders, so no neck gap opens")
+    func headMeetsShoulders() {
+        // Head radius plus half the torso width has to exceed the neck bone, or the figure
+        // comes apart at the collar in whichever pose gets it wrong.
+        let reach = SkierRig.headRadius + SkierRig.Width.core / 2
+        for pose in [SkierRig.upright, SkierRig.tuck, SkierRig.airborne, SkierRig.collapsed] {
+            let neck = hypot(pose.head.x - pose.shoulder.x, pose.head.y - pose.shoulder.y)
+            #expect(neck < reach)
+        }
+    }
+
+    @Test("the head is never wider than the torso")
+    func headIsNotALollipop() {
+        #expect(SkierRig.headRadius * 2 < SkierRig.Width.core)
     }
 
     @Test("a crash collapses the body onto the skis")

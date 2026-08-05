@@ -40,6 +40,7 @@ The game looks and feels like a product. No server, no money.
 |----|------|-----------|------|--------|
 | T-101 | Skier character art + rig | Real silhouette replaces the capsule; readable at speed | — | done |
 | T-102 | Skier animation states | Tuck, carve L/R, air, flip, land, crash all transition cleanly | T-101 | todo |
+| T-111 | Rig blending in angle space | Bones stay rigid *mid-blend*, not just in the authored poses | T-101 | todo |
 | T-103 | Art direction pass | Atmospheric Realism reference set agreed and applied; volumetric light, depth of field | — | todo |
 | T-104 | Snow surface treatment | Powder/crust/ice visually distinct at a glance, not just in the HUD | T-103 | todo |
 | T-105 | Crash + run-summary flow | Crash reads clearly, summary shows distance/air/flips/conditions, restart is one tap | T-102 | todo |

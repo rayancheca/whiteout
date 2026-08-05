@@ -187,7 +187,10 @@ final class MountainScene: SKScene {
         emitter.particleScaleRange = 0.5
         emitter.particleColor = conditions.palette.snowLit.uiColor
         emitter.particleColorBlendFactor = 1
-        emitter.zPosition = 40
+        // Behind the skier, not in front of it. Speed lines only fire above 0.58 of top
+        // speed — which is precisely a committed tuck — so drawing them over the player
+        // obscured them at the moment they most need to read.
+        emitter.zPosition = 15
         worldNode.addChild(emitter)
         speedLinesNode = emitter
     }
@@ -584,9 +587,9 @@ final class MountainScene: SKScene {
         spray.particleBirthRate = isCarving
             ? CGFloat(conditions.physics.sprayDensity * 260 * speedFraction)
             : 0
-        // Emitted from the edges, not from the node's origin. Snow is thrown by the skis;
-        // parking the plume on the body centre puts it at the skier's waist.
-        spray.position = skierNode.contactPoint(for: SkierRig.pose(for: skier, cues: cues))
+        // Emitted from the ski tail, where the plume actually separates — and it rotates
+        // with the skier, so on a steep pitch the spray leaves the edge rather than the air.
+        spray.position = skierNode.sprayOrigin(for: SkierRig.pose(for: skier, cues: cues))
     }
 
     private func layoutRidges() {

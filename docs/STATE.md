@@ -43,10 +43,19 @@ Haptics and audio need T-109 (device TestFlight) to confirm.
 
 ## Known rough edges
 
-- The upright pose's arms read as a blob across the chest, and the pole crosses the ski
-  awkwardly. Both are T-102's to refine.
-- The rig has four hand-authored poses with no transitions — switching between them is
-  instantaneous. That is exactly T-102.
+- **Bones stay rigid in the authored poses but not mid-blend.** `blended(toward:amount:)`
+  interpolates joint *positions*, which shortens every bone at intermediate `t` — measured
+  at ~6.6% of torso length at `t = 0.5`, on every frame of every tuck entry and exit. Not
+  visible at 30 pt, but it is the reason T-111 exists. The fix is to blend in angle space,
+  which is the space T-102 needs anyway.
+- The rig has four poses with no transitions — switching between them is instantaneous.
+  That is exactly T-102.
+- **`FeelCues.tuckCompression` is zeroed in the air** (`FeelModel.swift:56`). Harmless today
+  because `pose(for:cues:)` returns the air pose before consulting it, but T-102 cannot
+  drive an input-responsive air pose (a held flip) from that cue — the information is
+  already destroyed. It needs the raw input, not the cue.
+- **A flip has no up/down cue.** The head and the ski are both near-symmetric in profile,
+  so an inverted skier looks much like an upright one. T-102 needs an asymmetric element.
 - Visuals remain systemically correct but artistically thin: no volumetric light, no depth
   of field, no snow surface detail (T-103, T-104).
 - Speed reads slightly high (~60–85 km/h). Worth a tuning pass on device.
@@ -68,7 +77,16 @@ Both of this session's real findings came from *measuring*, not from reading cod
    because it retires the question. Lesson: before asserting a visual property, verify what
    is *actually behind* the thing you are asserting about.
 
-The Session 0001 pattern held again: reasoning missed both, execution caught both.
+3. **A tolerance band is not a rigidity check.** The first `limbsStayAttached` test allowed
+   each limb a range of 0.05–0.32 and passed — while the upper arm was 51% shorter in the
+   tuck than standing and the forearm 67% longer. A test wide enough never to fail asserts
+   nothing. The replacement compares every pose against the standing one, and the poses are
+   now *built* from a single bone table so the property is structural rather than merely
+   asserted.
+
+The Session 0001 pattern held again: reasoning missed all three, measurement caught them.
+Worth noting the review that surfaced #3 was only possible because the rig lives in Core as
+plain geometry — the same defect inside a SpriteKit node would have needed an artist's eye.
 
 ## Next
 

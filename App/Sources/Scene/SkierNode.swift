@@ -103,12 +103,18 @@ final class SkierNode: SKNode {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    /// Where the skis meet the snow, in this node's coordinates.
+    /// Where the plume of snow separates from the ski, in the parent's coordinates.
     ///
-    /// The spray emitter needs this: snow is thrown from the edges, and an emitter parked on
-    /// the body centre puts the plume at the skier's waist.
-    func contactPoint(for pose: SkierPose) -> CGPoint {
-        convert(point(pose.boot), to: parent ?? self)
+    /// The tail, not the boot. Snow is thrown along the whole edge but only becomes visible
+    /// behind the skier, and the boot sits within a point of the node's own origin — so
+    /// anchoring there is indistinguishable from not moving the emitter at all, which is
+    /// what a first attempt at this did.
+    func sprayOrigin(for pose: SkierPose) -> CGPoint {
+        let tail = pose.skiTail
+        // Pulled in from the very tip so the plume rises off the ski rather than trailing
+        // from a point in mid-air behind it.
+        let anchor = RigPoint(x: tail.x * 0.8, y: tail.y)
+        return convert(point(anchor), to: parent ?? self)
     }
 
     func apply(_ pose: SkierPose) {
