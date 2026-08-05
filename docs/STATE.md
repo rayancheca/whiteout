@@ -1,128 +1,134 @@
 # State
 
-**Updated:** Session 0005 · 2026-08-05
-**Milestone:** M1 (Vertical Slice) — T-102 and T-111 done together, T-116 opened
+**Updated:** Session 0006 · 2026-08-05
+**Milestone:** M1 (Vertical Slice) — T-105 done; T-117 and T-118 opened
 
 ---
 
 ## Where the project is
 
-**143 tests passing** across 22 suites in ~70 ms. iOS build green. Working tree clean and
-**pushed to `origin/main`** — the eleven commits that had been held back since T-110 went up
-with this session's work.
+**164 tests passing** across 24 suites in ~130 ms. iOS build green. Working tree clean.
 
-T-102 and T-111 are **done**, and they were the same fix. The rig now blends in angle space
-and carries transition state between frames, so the skier moves between poses instead of
-switching between them.
+A run now has an ending. T-105 is **done**: the skier crashes, slides to a stop, folds, and the
+world falls back behind a summary card carrying distance, conditions, air time and flips. One
+tap anywhere drops back in.
 
-## Why the two tasks were one
+Before this session `RunScore` had existed and been unit-tested in Core since M0 and was
+**never displayed anywhere**. `RunTelemetry.score(conditions:peak:)` was written and never
+called. A crash produced a small HUD chip in the same position as the live readout, and nothing
+about the screen said the run was over.
 
-`FeelModel` emitted `tuckCompression` as a binary 0 or 1, and `SkierRig.pose` hard-switched
-between four authored poses. So no intermediate blend value was ever drawn — which is exactly
-why T-111's bone shortening had been unobservable since T-101. Adding transitions is what
-made the defect visible; fixing the blend is what made the transitions correct.
+## The idea worth keeping (ADR-026)
 
-## What changed
+**A settled crash is an exact fixed point of the simulation.** `coast` clamps with
+`max(0, v - 9Δ)`, so once `velocityX` hits zero every field is a constant expression of itself
+and `step(settled, any input, any delta) == settled`.
 
-**Angle-space blending (ADR-024).** `RigAngles` — the joint angles — is now canonical, and
-`SkierPose` is what falls out of solving it. Blending happens on angles; bone lengths are
-constants of the solver, so they are rigid at every `t` by construction. `SkierPose.blended`
-and `RigPoint.blended` are **deleted**, not deprecated: a pose that carries no blend method
-cannot be blended wrongly by the next caller.
+So **nothing is snapshotted.** A score read on any frame the card is visible is provably equal
+to one read on the first — no latch to go stale, no distance ticking up under a motionless
+skier, no score surviving a restart. That class of bug is unreachable rather than guarded.
+`aSettledRunCannotDrift` holds the property and would catch a future `coast` that eased
+asymptotically instead of clamping, which would silently make the summary never appear.
 
-Interpolation takes the **shortest arc**, and the pole is the proof. It sits at −2.406 rad
-upright and +2.898 tucked — both trailing behind the skier, but 5.3 rad apart numerically. A
-plain lerp sweeps it *forward through the skier's chest*; the −0.98 rad short arc swings it
-the way a pole swings. Position blending had concealed this by shortening the pole instead.
-
-**Transition state (ADR-025).** `SkierAnimator` is an immutable struct of five `0...1` weights
-that `MountainScene` carries and advances each frame. Composing weights rather than running a
-state machine lets transitions overlap — landing while still tucked, crashing mid-flip —
-without enumerating the pairs.
-
-**Four new poses:** `carveLeft` / `carveRight` (the flex-and-extend halves of an edge change),
-`flipTuck` (knees to chest while rotating hard), `landing` (absorption on touchdown).
-
-The carve rhythm is driven by `distanceM`, not a clock: no memory needed, speeds up with the
-skier for free, identical on replay at any frame rate.
+Run-end is a pure predicate: `hasCrashed && velocityX == 0 && collapse >= 0.9`. The only new
+stored state in the whole change is `MountainScene.endReason`, naming which crash it was.
+`restart()` gained one reset line.
 
 ## Numbers worth keeping
 
-- Transition rates were set against **measured per-frame joint travel**, not by feel. At
-  `tuckIn = 17` the head crossed 5.2 points in one frame at a 30-point body — that reads as a
-  cut, not a fold. At 12 it is 4.0, and every joint holds 3.2–6.4× headroom below what a
-  single-frame switch would move it.
-- The carve pair spans only 10% of body height, but the pole tip travels ~10 points against
-  the body's 3. A first pass at half these amplitudes measured fine and was invisible on
-  screen.
-- Widest shortest-arc separation in the rig is the pole between `carveRight` and `flipTuck`
-  at 1.49 rad — 1.65 rad of headroom below π, where shortest-arc would start picking the
-  wrong side. A test asserts that margin.
+- **The beat is 0.23–1.18 s, median 0.60 s**, and scales with crash severity for free: a crash
+  at 32 m/s slides 1.42 s, one at 10 m/s slides 0.44 s.
+- `collapseFloor = 0.9` is reached in `ln(10)/Rate.crash` = 0.233 s. `Rate` is private, so a
+  test pins the coupling rather than a comment claiming it.
+- **A held tuck, driven to its crash on every surface:** ice / crust / wind slab crash at frame
+  55–130 and 10–24 m; slush ~370 and ~85 m; packed ~700 and ~250 m; powder ~2,700 and ~950 m.
+  Same input, sixty times the run, decided entirely by the snow. Powder is why
+  `everySurfaceProducesAScoreableRun` needs a 4,000-frame budget rather than the suite default
+  of 1,800 — it failed on exactly that first.
+
+## Two things the crash was getting wrong, now fixed
+
+- It printed **"CAUGHT AN EDGE" over blown landings too.** The answer was already in the two
+  states either side of the crash frame: from the air it is a landing, from the ground it is
+  the edge. Derived in the shape of `FeelModel.landingImpact`, so nothing is added to
+  `SkierState`.
+- **The next tap could dismiss the result before it appeared.** A crash almost always arrives
+  with the finger still down holding the tuck. Restart now requires a settled run, so the slide
+  is a natural debounce — while "restart is one tap" stays literally true anywhere on screen,
+  including on the card, which never hit-tests.
 
 ## Verified on the simulator
 
-Three genuinely distinct shapes captured on a live app, including a **mid-transition frame**
-— the first one that could exist, and the T-111 proof: every limb full length and connected,
-pole correctly swept behind. Also 46 frames of the carve rhythm (flexion, extension, pole
-swing), and a stationary skier holding exact `upright` with no sway.
+- The summary card twice, on two palettes — Tokyo daylight slush, Chamonix night slush. The
+  accent tracks the weather (`palette.skierRim`): warm cream on one, cool near-white on the other.
+- **BLEW THE LANDING** derived correctly on a real run — the label the old build got wrong.
+- Restart in one tap: card gone, HUD back, new run live at 59 m / 34 km/h.
+- Determinism, incidentally: restart + hold from the drop-in on unchanged conditions crashed at
+  exactly 134 m with 0.7 s air, twice.
 
 ## Not verified on the simulator
 
-**Air, flip, landing absorption and crash collapse were never captured on screen.** Roughly
-100 screenshots across six attempts; the touch never overlapped a jump. They are covered
-headlessly instead, by `SkierAnimatorRunTests` driving the *real* simulation over generated
-terrain — seed 17 reaches air 1.00, flip 1.00, landing 1.00 and crash 1.00, with bone rigidity
-and joint continuity asserted on every frame of six descents across all six snow states.
+- **"CAUGHT AN EDGE" has never been seen on screen.** Both reachable origins resolved to slush
+  or packed, where a held tuck meets a jump before instability fills, so every captured crash
+  was a blown landing. Covered by test on both sides (`theHeadlineNamesWhichCrashItWas` and
+  `bothKindsOfCrashHappenOnARealMountain`) but not photographed.
+- **The tap-during-settle debounce.** Three lines of plain logic, but the window is under a
+  second and no capture landed inside it. There is no App-layer test target.
+- Whether the 0.23–1.18 s beat reads as considered or as lag. If it reads long, the honest lever
+  is `coast`'s 9 m/s² deceleration, not a bolted-on timer.
+- Reduced-motion path; Dynamic Type (the card uses fixed sizes, like every other view here).
+- Still outstanding from earlier sessions: haptics and procedural audio (no taptic engine in the
+  simulator, needs T-109), and landscape-right safe area.
 
-The final rate softening was verified by test only; the on-screen captures predate it. Only
-six easing constants changed — poses, blend maths and composition order are byte-identical.
+## T-116 is now cheap to reproduce
 
-Also still unverified from earlier sessions: haptics and procedural audio (no taptic engine in
-the simulator, needs T-109), and landscape-right safe area.
+Found while hunting a ground crash: **Reykjavík / Packed stalls at 38 m** — 0 km/h, EDGE meter
+near empty, fully upright, identical after six seconds. An order of magnitude cheaper than the
+894 m and 913 m cases from session 0005, and it happens within seconds of the drop-in. Start
+there.
 
-## T-116 — a run can stall to a dead stop (new, open)
+Not fixed, deliberately. But T-105 built the place it resolves to: a stall becomes a second
+disjunct in `RunOutcome.hasSettled`, and `RunScore.endedInCrash` already carries the distinction
+downstream. The summary correctly does not fire today, and the test comment says so explicitly
+so it cannot later be misread as covering the case.
 
-Found while verifying. The skier loses all speed on a flat and sits at **0 km/h indefinitely**:
-no crash, no summary, and no input that can restore momentum. Reproduced at 894 m and 913 m.
-Pre-existing simulation behaviour, untouched by this session.
+## Also recorded
 
-**This corrects ADR-023.** That ADR blamed Session 0003's "frozen at 894 m / 0 km/h" on a
-stale process. Session 0005 reproduced a dead stop at *exactly 894 m* on a freshly launched,
-demonstrably live app — and since the terrain is deterministic, a run that always dies at the
-same place is the simulation stalling, not a process freezing. ADR-023's conclusion still
-stands (the tuck renders; concurrent capture is still mandatory), but the diagnostic now needs
-a third branch — see the amendment in `DECISIONS.md`.
+**The crash is currently the game's quietest moment.** `FeelModel` shake measures 0.78–0.93 on
+the frame before a lost edge and exactly 0 on the crash frame. The guard causing that is
+*correct* — both terms model riding, and relaxing it makes a crashed body chatter as though
+still on its edges — so the fix is a separate crash channel summed in `applyShake`. Written into
+the code and onto T-106 so it does not get "fixed" the wrong way.
 
 ## Environment notes
 
-- **Two identical captures no longer prove a stale process.** Check the readouts: a *stalled*
-  run is 0 km/h with a near-empty EDGE meter, full opacity and an upright pose; a *crash* is
-  0 km/h with a full meter, 75% alpha and the collapsed pose; a stale process is anything else
-  frozen. Relaunch with `xcrun simctl terminate/launch booted com.whiteout.game`.
-- **`touch_path` sustains a touch**, but landing it inside a capture window is unreliable —
-  it succeeded twice in eight attempts this session. `dt_ms` on the *first* point is **not** a
-  pre-delay; scheduling a hold to start later that way does not work. Best results came from
-  backgrounding the capture loop and issuing the touch in the same tool batch.
-- **zsh `nomatch` will abort a `&&` chain**: `rm -f foo_*.png` with no matches kills the rest
-  of the command. Cost one silent no-op capture run this session.
-- The build lands in `./build/Build/Products/Debug-iphonesimulator/Whiteout.app`
-  (`verify.sh` passes `-derivedDataPath build`), **not** DerivedData.
-- **`timeout` does not exist on macOS.** Use `gtimeout` or no wrapper.
-- Screenshots need `sips -r -90`; device portrait, app landscape. ImageMagick and Python PIL
-  are both available; `montage` fails on font lookup, so build contact sheets with PIL.
-- The skier's screen x **shifts right with speed** (`cameraLead`), so a fixed crop window will
-  lose it. Locate it as the darkest pixel cluster below the conditions card.
+Carried forward from session 0005, all still true:
+
+- **A stalled run and a stale process photograph identically.** Check the readouts: a *stalled*
+  run is 0 km/h with a near-empty EDGE meter, full opacity and an upright pose; a *crash* is now
+  0 km/h behind a summary card; a stale process is anything else frozen. Relaunch with
+  `xcrun simctl terminate/launch booted com.whiteout.game`.
+- **A crashed run is no longer photographically fragile** — the summary is stable indefinitely,
+  so a crash capture needs no concurrent-capture trick. Only *held-input* checks still do
+  (ADR-023).
+- `touch_path` sustains a touch. `dt_ms` on the *first* point is not a pre-delay.
+- **Which snow state you get is not selectable.** Origins resolve to live weather, so hunting a
+  specific crash type means taking what the day gives you. Tokyo and Chamonix both gave slush
+  this session, Reykjavík gave packed.
+- zsh `nomatch` aborts a `&&` chain: `rm -f foo_*.png` with no matches kills the rest.
+- The build lands in `./build/Build/Products/Debug-iphonesimulator/Whiteout.app`, not DerivedData.
+- `timeout` does not exist on macOS; use `gtimeout` or nothing.
+- Screenshots need `sips -r -90`; device portrait, app landscape.
 - Dev panel taps in device points (402 × 874): gear `(366, 776)`, Chamonix `(108, 749)`,
   Reykjavík `(71, 750)`, Tokyo `(35, 760)`, The Resort `(322, 747)`, Thin Air `(188, 738)`,
   mute `(56, 775)`. Miami is clipped off the bottom of the picker and is not tappable.
-- A cold launch can resolve to `offline · default conditions`; re-selecting an origin in the
-  dev panel forces a live re-resolve.
+- **The expanded dev panel overlaps the summary card's column.** Dev-only scaffolding that will
+  not ship, and the card takes no touches, so the pickers stay operable.
 
 ## Next
 
-**T-105 (crash + run-summary flow)** is now unblocked by T-102 and is the natural follow-on —
-it also gives T-116 somewhere to resolve to, since a stalled run needs the same summary a
-crashed one does.
+**T-116** is the strongest candidate: it now has both a cheap reproduction and somewhere to
+resolve to, and it is the last thing that can leave a run with no ending.
 
 **T-114** (`GameView` rebuilds the scene every body evaluation) is still small, real and
-unblocked. **T-103** and **T-106** remain unblocked and independent.
+unblocked. **T-103**, **T-106**, **T-117** and **T-118** are unblocked and independent.

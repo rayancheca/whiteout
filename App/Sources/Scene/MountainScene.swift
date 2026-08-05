@@ -35,6 +35,9 @@ final class MountainScene: SKScene {
     /// Carries the pose between frames so states ease rather than snap. The simulation is
     /// memoryless by design, and a transition is exactly the memory it refuses to keep.
     private var animator: SkierAnimator = .idle
+    /// What ended this run, latched on the crash frame. The only state the summary adds —
+    /// whether the run is *over* is derived per frame, not stored.
+    private var endReason: RunOutcome.Reason?
     /// This frame's solved pose. Built once, then read by the skier and the spray emitter —
     /// the pose is now a stack of blends, so solving it twice a frame is real work wasted.
     private var pose: SkierPose = SkierRig.upright
@@ -47,6 +50,15 @@ final class MountainScene: SKScene {
     private var trail: [(distance: Double, altitude: Double)] = []
 
     private var distanceMetres: Double { skier.distanceM }
+
+    /// Whether the run has finished and the summary may be shown. Derived, never stored, so
+    /// `restart()` has nothing extra to clear and a replay carries nothing extra.
+    private var isRunOver: Bool { RunOutcome.hasSettled(skier, collapse: animator.crash) }
+
+    /// One expression for what the HUD is told, so the three call sites cannot drift apart.
+    private func publishTelemetry() {
+        telemetry.update(from: skier, isRunOver: isRunOver, endReason: endReason)
+    }
 
     /// Half the on-screen ski length, converted back into world metres.
     private var drawnSkiHalfLengthM: Double {
@@ -110,11 +122,14 @@ final class MountainScene: SKScene {
     // One input, held or not. What the correct hold pattern *is* changes entirely with
     // the day's snowpack, which is where the weather stops being scenery.
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if skier.hasCrashed {
-            restart()
-        } else {
-            isHolding = true
+        // A crash usually arrives with the finger still down holding the tuck, so the very next
+        // touch is often reflex rather than intent. Restarting only once the run has *settled*
+        // makes the slide a natural debounce: the result cannot be dismissed before it appears.
+        guard !skier.hasCrashed else {
+            if isRunOver { restart() }
+            return
         }
+        isHolding = true
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -128,7 +143,6 @@ final class MountainScene: SKScene {
     private func restart() {
         skier = SkierState.start(on: terrain)
         isHolding = false
-        telemetry.update(from: skier)
 
         // Everything the previous run accumulated has to go with it. The trail is keyed by
         // distance, so surviving points sit ahead of a skier who has just reset to zero and
@@ -138,10 +152,15 @@ final class MountainScene: SKScene {
         // Without this the new run inherits the crash's collapse weight and the skier spends
         // the first half-second unfolding off the snow.
         animator = .idle
+        endReason = nil
         pose = SkierRig.upright
         trail.removeAll()
         landingPunch = 0
         cameraHeightM = terrain.height(at: 0)
+
+        // After the animator, because `isRunOver` reads its crash weight — publishing before it
+        // is cleared would report the new run as already finished and leave the summary up.
+        publishTelemetry()
         layoutSkier()
     }
 
@@ -151,6 +170,12 @@ final class MountainScene: SKScene {
     // MARK: - Setup
 
     override func didMove(to view: SKView) {
+        // `telemetry` outlives the scene — a conditions change builds a new `MountainScene`
+        // around the same object — and `update` returns early on its first call, so without
+        // this the previous run's summary stays on screen over the opening frames of the new
+        // run, with the HUD hidden and a tap starting a tuck rather than dismissing anything.
+        publishTelemetry()
+
         backgroundColor = conditions.palette.skyHorizon.uiColor
         addChild(worldNode)
         buildSky()
@@ -528,8 +553,6 @@ final class MountainScene: SKScene {
             physics: conditions.physics,
             delta: delta
         )
-        telemetry.update(from: skier)
-
         cues = FeelModel.cues(
             for: skier,
             physics: conditions.physics,
@@ -542,7 +565,8 @@ final class MountainScene: SKScene {
             landingPunch = 16 * CGFloat(impact)
             feedback.landing(strength: impact)
         }
-        if !previous.hasCrashed && skier.hasCrashed {
+        if let reason = RunOutcome.reason(previous: previous, current: skier) {
+            endReason = reason
             feedback.crash()
         }
 
@@ -551,6 +575,10 @@ final class MountainScene: SKScene {
         // when a landing happened is how a landing ends up feeling smeared.
         animator = animator.advanced(for: skier, cues: cues, landingImpact: impact, delta: delta)
         pose = animator.pose(for: skier, cues: cues)
+
+        // After the animator advance, so `isRunOver` is this frame's answer rather than the
+        // previous one, and the HUD is describing the frame about to be drawn.
+        publishTelemetry()
 
         advanceCamera(delta: delta)
         recordTrail()
@@ -723,7 +751,9 @@ final class MountainScene: SKScene {
         // animator eases between poses, so the shape changes over a few frames rather than
         // between two of them.
         skierNode.apply(pose)
-        skierNode.alpha = skier.hasCrashed ? 0.75 : 1.0
+        // Riding the same weight as the collapse rather than snapping on `hasCrashed`: the fade
+        // was the last thing about a crash that still happened in one frame.
+        skierNode.alpha = 1.0 - 0.25 * CGFloat(animator.crash)
     }
 
     private func layoutTrail() {

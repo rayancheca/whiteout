@@ -301,3 +301,38 @@ run reads 0 km/h with an almost empty EDGE meter and a fully opaque upright skie
 reads 0 km/h with a full meter, 75% alpha and the collapsed pose.
 **Consequence.** The stall is now T-116. It is a soft-lock: no crash, no summary, no input
 that can restore momentum.
+
+### ADR-026 — A run ends when the skier stops, and the ending is derived rather than stored
+**Decision.** `RunOutcome.hasSettled(state, collapse:)` is a pure predicate:
+`hasCrashed && velocityX == 0 && collapse >= 0.9`. No run-end flag is stored, no score is
+snapshotted, and no timer is started. The only new stored state anywhere is
+`MountainScene.endReason`, which exists solely to name *which* crash it was.
+**Why nothing is snapshotted.** A stopped crash is an exact fixed point of the simulation:
+`coast` clamps with `max(0, v - 9Δ)` and advances distance by `velocityX · Δ`, so once
+`velocityX` reaches zero every field is a constant expression of itself. `step(settled, any
+input, any delta) == settled`, verified across both inputs and 1/120, 1/60 and 1/30. So a
+`RunScore` read on any frame the card is visible is provably identical to one read on the first
+— which makes the whole class of capture bugs unreachable rather than merely guarded: no latch
+to go stale, no distance ticking up under a motionless skier, no score surviving a restart.
+`aSettledRunCannotDrift` is what holds this, and is the test that would catch a future `coast`
+easing asymptotically instead of clamping, which would silently make the summary never appear.
+**Why the beat is two existing clocks and not a new one.** The pause between the crash and the
+card is `velocityX == 0` AND `crash >= 0.9`. Both already exist and are already cleared by
+`restart()`; a third clock would need its own reset entry, its own frame-rate story and its own
+determinism test. The pause is 0.23–1.18 s, median 0.60 s, and it scales with the severity of
+the crash for free — a fast crash earns a long slide, a slow one resolves quickly.
+**Why the collapse term as well as the stop.** A crash entered at walking pace stops in a couple
+of frames, and gating on the stop alone would drop the card over a skier still standing upright.
+`collapseFloor` is deliberately coupled to `SkierAnimator.Rate.crash`: the beat exists so the
+fold can be *seen*, so retuning the fold has to move the beat with it. `Rate` is private, so
+`theCollapseFloorMatchesTheAnimatorsCrashRate` pins the relationship rather than a comment
+claiming it.
+**Consequence for input.** A crash usually arrives with the finger still down holding the tuck,
+so the next touch is often reflex. Restart now requires a *settled* run, which makes the slide a
+natural debounce — the result cannot be dismissed before it appears — while leaving "restart is
+one tap" literally true anywhere on screen, including on the card, which never hit-tests.
+**Rejected: freezing the score at the crash frame.** It looks more correct and is not. The
+crash frame itself moves 9–31 m across 30/60/120 Hz, because different deltas cross the
+instability threshold in different places — roughly seventy times the 2–5 m of the slide it
+would be removing. Whether the replay tape is fixed-step or carries deltas is T-403's question;
+pretending the slide is the source of frame-rate dependence would write a false premise here.

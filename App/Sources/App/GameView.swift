@@ -53,8 +53,11 @@ struct GameView: View {
                 .padding(.bottom, 24)
                 .allowsHitTesting(false)
 
+            // Purely informational, and its material background is hit-testable by default —
+            // which would have made it a dead zone swallowing the tap that drops back in.
             ConditionsCard(conditions: store.conditions, usingFallback: store.usingFallback)
                 .padding(20)
+                .allowsHitTesting(false)
 
             // Location and elevation pickers are development scaffolding. Four
             // competing elements do not fit a 402pt-tall landscape screen, and
@@ -83,6 +86,15 @@ struct GameView: View {
             MuteButton()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .padding(20)
+
+            // Last, so it layers over everything — but it never takes a touch, so the tap that
+            // dismisses it reaches the scene and the mute button below stays live.
+            RunSummaryOverlay(
+                telemetry: telemetry,
+                conditions: store.conditions,
+                peak: store.peak
+            )
+            .allowsHitTesting(false)
         }
     }
 
@@ -178,21 +190,6 @@ struct RunHUD: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            if telemetry.hasCrashed {
-                VStack(spacing: 3) {
-                    Text("CAUGHT AN EDGE")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .tracking(2.4)
-                    Text("tap to drop in again")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .opacity(0.65)
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(.black.opacity(0.4), in: Capsule())
-            }
-
             HStack(alignment: .firstTextBaseline, spacing: 18) {
                 Text("\(Int(telemetry.distanceM))m")
                     .font(.system(size: 26, weight: .heavy, design: .rounded))
@@ -212,6 +209,14 @@ struct RunHUD: View {
 
             EdgeMeter(value: telemetry.instability, chatter: physics.chatter)
         }
+        // On a finished run the speed is 0 and the edge meter is pinned full: both are noise
+        // competing with the summary. Faded here rather than in `GameView` so the observation
+        // stays in the leaf that already reads telemetry.
+        .opacity(telemetry.isRunOver ? 0 : 1)
+        .animation(.easeOut(duration: 0.28), value: telemetry.isRunOver)
+        // `.opacity(0)` leaves content in the accessibility tree, so without this VoiceOver
+        // still lands on a stale "0m · 0 km/h · EDGE" behind the summary describing the run.
+        .accessibilityHidden(telemetry.isRunOver)
     }
 
     private struct EdgeMeter: View {

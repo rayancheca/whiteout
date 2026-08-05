@@ -3,7 +3,11 @@ import Foundation
 @testable import WhiteoutCore
 
 /// One frame of a headless run: the real simulation, the real cues, the real animator.
-private struct Frame {
+///
+/// Internal rather than file-private because `RunOutcomeTests` asks its questions of the same
+/// descents. Run-end is a predicate over `state` and `animator.crash`, both already here, and a
+/// second harness driving the same loop would be a second thing to keep honest.
+struct Frame {
     let state: SkierState
     let cues: FeelCues
     let animator: SkierAnimator
@@ -17,7 +21,7 @@ private struct Frame {
 /// a landing that arrives mid-flip, a crash that lands on the frame the skier touches down.
 /// This walks the genuine simulation over generated terrain instead, so those overlaps happen
 /// on their own. It is deterministic from the seed, so it is a fixed sequence, not a fuzz run.
-private func descend(
+func descend(
     seed: UInt64,
     snowState: SnowState,
     isHolding: @escaping (Int) -> Bool,

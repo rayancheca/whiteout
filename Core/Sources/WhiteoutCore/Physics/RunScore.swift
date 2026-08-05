@@ -48,6 +48,17 @@ public struct RunScore: Sendable, Equatable {
             + flips * 240
     }
 
+    /// The conditions half of the claim, phrased to follow a distance.
+    ///
+    /// Separate from `shareLine` rather than composed into it: the card reads "4,120 m" and
+    /// "on breakable crust · Resort" as two lines with different weights, and the share image
+    /// needs one sentence. `shareLine` keeps its own phrasing until T-405 decides that shape,
+    /// so the two are deliberately not coupled yet — `theCardAndTheShareLineNameTheSameConditions`
+    /// pins only that both name the same snow and the same peak.
+    public var conditionsLine: String {
+        "on \(snowState.displayName) · \(peak.name)"
+    }
+
     /// One-line summary for the share card.
     ///
     /// The conditions are part of the boast. "4,120 m on breakable crust" is a claim about

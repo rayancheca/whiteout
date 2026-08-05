@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 import WhiteoutCore
 
@@ -16,6 +17,9 @@ extension OKLCH {
             alpha: CGFloat(components.a)
         )
     }
+
+    /// The same bridge for SwiftUI, so overlay chrome can be tinted by the weather too.
+    var color: Color { Color(uiColor: uiColor) }
 }
 
 extension UIColor {

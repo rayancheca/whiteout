@@ -45,15 +45,17 @@ The game looks and feels like a product. No server, no money.
 | T-112 | Refresh README screenshots | All 8 recaptured fullscreen with the real skier; caption 6 no longer describes the deleted squash; then push | T-101, T-110, T-113 | done |
 | T-114 | `GameView` rebuilds the scene every body evaluation | `makeScene` no longer constructs a `MountainScene` (and a `TerrainGenerator`) on every SwiftUI re-render; the comment at `GameView.swift:83` stops claiming a caching behaviour that does not exist | — | todo |
 | T-115 | Mute button | One tap silences the synthesised wind and edge noise; state survives relaunch and a conditions re-resolve; haptics unaffected | — | done |
-| T-116 | A run can stall to a dead stop instead of ending | The skier can no longer reach 0 km/h and sit there: a run that loses all speed on a flat resolves into a crash, a summary, or a recovery. Observed at 913 m — EDGE meter near empty, no crash, fully upright, motionless indefinitely with no input able to restart momentum | — | todo |
+| T-116 | A run can stall to a dead stop instead of ending | The skier can no longer reach 0 km/h and sit there: a run that loses all speed on a flat resolves into a crash, a summary, or a recovery. Observed at 913 m — EDGE meter near empty, no crash, fully upright, motionless indefinitely with no input able to restart momentum. **Session 0006: reproduced at 38 m on Reykjavík / Packed, within seconds of the drop-in — far cheaper to hit than the 894/913 m cases, so start there.** T-105 built the place it should resolve to: a stall ends the run by satisfying a second disjunct in `RunOutcome.hasSettled`, and `RunScore.endedInCrash` already carries the distinction | — | todo |
 | T-103 | Art direction pass | Atmospheric Realism reference set agreed and applied; volumetric light, depth of field | — | todo |
 | T-104 | Snow surface treatment | Powder/crust/ice visually distinct at a glance, not just in the HUD | T-103 | todo |
-| T-105 | Crash + run-summary flow | Crash reads clearly, summary shows distance/air/flips/conditions, restart is one tap | T-102 | todo |
-| T-106 | Audio pass | Layered wind, edge, impact, ambience; mix balanced against the procedural base | — | todo |
+| T-105 | Crash + run-summary flow | Crash reads clearly, summary shows distance/air/flips/conditions, restart is one tap | T-102 | done |
+| T-106 | Audio pass | Layered wind, edge, impact, ambience; mix balanced against the procedural base. **Also: the crash is currently the game's quietest moment.** `FeelModel` shake measures 0.78–0.93 on the frame before a lost edge and exactly 0 on the crash frame. That guard is correct — both shake terms model *riding*, and relaxing it makes a crashed body chatter as though still on its edges — so the fix is a separate crash channel summed in `applyShake`, not a change to the guard | — | todo |
 | T-107 | Main menu + drop-in flow | Conditions card as the hero; start, settings, peak select | T-105 | todo |
 | T-108 | Device performance pass | Locked 120 Hz on ProMotion, no frame drops in a whiteout | T-103 | todo |
 | T-109 | **Gate: internal TestFlight** | Signed build installed and played on real hardware; haptics verified | T-101…T-108 | todo |
 | T-110 | Fullscreen + safe-area pass | Edge-to-edge canvas on every device from iPhone X on; HUD and cards clear the notch and home indicator in both landscape orientations | — | done |
+| T-117 | Split `MountainScene` | The file is ~760 lines against a ~400 house limit. Build/layout of sky, ridges, slope, trail, spray and snowfall are separable from the frame loop and the input handling. Not urgent, but every task that touches the scene makes it worse | — | todo |
+| T-118 | A second finger releases the tuck | `touchesEnded` sets `isHolding = false` unconditionally, so lifting *any* finger drops the tuck even while another is still down. Pre-existing, found while reading the input path for T-105. Track the touch that started the hold | — | todo |
 
 ## M2 — Game Systems
 

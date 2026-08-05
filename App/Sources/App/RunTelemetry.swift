@@ -19,18 +19,45 @@ final class RunTelemetry {
     private(set) var isAirborne = false
     private(set) var hasCrashed = false
 
-    func update(from state: SkierState) {
-        distanceM = state.distanceM
-        speedKmh = state.velocityX * 3.6
-        instability = state.instability
-        flips = state.flips
-        airTimeS = state.totalAirTimeS
-        isAirborne = !state.isGrounded
-        hasCrashed = state.hasCrashed
+    /// The run has ended *and* settled — see `RunOutcome.hasSettled`. Distinct from
+    /// `hasCrashed`, which is true from the instant of the crash, through the slide.
+    private(set) var isRunOver = false
+    /// What ended the run, held from the crash frame until the next run starts.
+    private(set) var endReason: RunOutcome.Reason?
+
+    /// `@Observable` fires on assignment, not on change, so every field is written through this
+    /// rather than assigned directly.
+    ///
+    /// It matters most exactly where the summary lives: once a run has settled, *nothing* moves
+    /// again (ADR-026), yet the frame loop keeps calling this sixty times a second. Assigning
+    /// unconditionally would invalidate the summary card on every one of those frames. Several
+    /// fields — `flips`, `isAirborne`, `hasCrashed` — also change only a handful of times in a
+    /// live run, so the HUD stops re-evaluating on them too.
+    private func write<Value: Equatable>(_ value: Value, to field: ReferenceWritableKeyPath<RunTelemetry, Value>) {
+        if self[keyPath: field] != value { self[keyPath: field] = value }
     }
 
-    func score(conditions: RunConditions, peak: Peak) -> RunScore {
-        RunScore(
+    func update(from state: SkierState, isRunOver: Bool, endReason: RunOutcome.Reason?) {
+        write(state.distanceM, to: \.distanceM)
+        write(state.velocityX * 3.6, to: \.speedKmh)
+        write(state.instability, to: \.instability)
+        write(state.flips, to: \.flips)
+        write(state.totalAirTimeS, to: \.airTimeS)
+        write(!state.isGrounded, to: \.isAirborne)
+        write(state.hasCrashed, to: \.hasCrashed)
+        write(isRunOver, to: \.isRunOver)
+        write(endReason, to: \.endReason)
+    }
+
+    /// The finished run's score, or `nil` while a run is still live.
+    ///
+    /// Optional and gated rather than always-available, because a score is only meaningful
+    /// once there is nothing left to add to it. Nothing is snapshotted to build it: `isRunOver`
+    /// is only true at the simulation's fixed point, where the fields it reads provably cannot
+    /// move again (ADR-026).
+    func finishedScore(conditions: RunConditions, peak: Peak) -> RunScore? {
+        guard isRunOver else { return nil }
+        return RunScore(
             distanceM: distanceM,
             airTimeS: airTimeS,
             flips: flips,

@@ -69,6 +69,11 @@ public enum FeelModel {
         physics: SnowPhysics,
         speedFraction: Double
     ) -> Double {
+        // Measured: this sits at 0.78–0.93 on the frame before a lost edge and 0.000 on the
+        // crash frame, which makes the most violent event in the game its quietest. The guard
+        // is nonetheless right — both terms below model *riding*, and relaxing it makes a
+        // crashed body chatter as though still on its edges. A crash needs its own channel
+        // summed in `applyShake`, not a hole in this one. T-106.
         guard !state.hasCrashed else { return 0 }
         guard state.isGrounded else {
             // Air is quiet. The contrast is what makes a jump feel like relief.
