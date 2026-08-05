@@ -95,6 +95,13 @@ The Session 0001 pattern held again: reasoning missed all three, measurement cau
 Worth noting the review that surfaced #3 was only possible because the rig lives in Core as
 plain geometry — the same defect inside a SpriteKit node would have needed an artist's eye.
 
+## The push is held
+
+Four commits are local-only. The README's 7 screenshots all show the letterboxed frame and
+the black capsule, and caption 6 describes the vertical squash that no longer exists —
+pushing would publish captures that misrepresent the app. **T-112 refreshes them and then
+pushes.** Do that before anything else if off-machine backup matters more than the ordering.
+
 ## Next
 
 **T-102 — Skier animation states.** The rig exposes `upright`, `tuck`, `airborne` and
