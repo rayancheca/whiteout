@@ -76,6 +76,13 @@ struct GameView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             .padding(20)
+
+            // Bottom-trailing keeps it clear of all three of the conditions card, the run
+            // HUD and the dev panel — and, more importantly, away from where a thumb rests
+            // to hold the tuck.
+            MuteButton()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(20)
         }
     }
 
@@ -239,6 +246,33 @@ struct RunHUD: View {
             default: .red
             }
         }
+    }
+}
+
+/// Silences the procedural wind and edge noise.
+///
+/// Unlike the dev panel this one ships. The game has no music and no voice, so the only
+/// thing to silence is the synthesised weather — and a player on a train, or a developer
+/// running the same slope forty times to photograph it, needs that within one tap rather
+/// than buried behind a settings screen that does not exist yet (T-204).
+///
+/// Haptics stay live: muting is about the room, not the hand.
+struct MuteButton: View {
+    private var settings: AudioSettings { AudioSettings.shared }
+
+    var body: some View {
+        Button {
+            settings.isMuted.toggle()
+        } label: {
+            Image(systemName: settings.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white.opacity(settings.isMuted ? 0.55 : 1))
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(.black.opacity(0.35)))
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(settings.isMuted ? "Unmute weather audio" : "Mute weather audio")
     }
 }
 

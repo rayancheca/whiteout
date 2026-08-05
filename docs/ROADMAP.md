@@ -44,6 +44,7 @@ The game looks and feels like a product. No server, no money.
 | T-113 | ~~Held input never sustains a tuck~~ — **not a defect** | Closed: the tuck renders and speed rises (43→71→80 km/h) under a sustained hold. The Session 0003 report was a measurement artefact — see ADR-023 | T-101 | done |
 | T-112 | Refresh README screenshots | All 8 recaptured fullscreen with the real skier; caption 6 no longer describes the deleted squash; then push | T-101, T-110, T-113 | done |
 | T-114 | `GameView` rebuilds the scene every body evaluation | `makeScene` no longer constructs a `MountainScene` (and a `TerrainGenerator`) on every SwiftUI re-render; the comment at `GameView.swift:83` stops claiming a caching behaviour that does not exist | — | todo |
+| T-115 | Mute button | One tap silences the synthesised wind and edge noise; state survives relaunch and a conditions re-resolve; haptics unaffected | — | done |
 | T-103 | Art direction pass | Atmospheric Realism reference set agreed and applied; volumetric light, depth of field | — | todo |
 | T-104 | Snow surface treatment | Powder/crust/ice visually distinct at a glance, not just in the HUD | T-103 | todo |
 | T-105 | Crash + run-summary flow | Crash reads clearly, summary shows distance/air/flips/conditions, restart is one tap | T-102 | todo |
@@ -62,7 +63,7 @@ Everything a player expects around the core loop.
 | T-201 | Persistence layer | Lifetime distance, bests, unlocks, settings survive relaunch and migrate safely | — |
 | T-202 | Run scoring + local leaderboards | Per-snow-state and per-peak personal bests | T-201 |
 | T-203 | Onboarding | First run teaches one-button control without a wall of text | T-107 |
-| T-204 | Settings screen | Haptics, audio, reduced motion, units | T-201 |
+| T-204 | Settings screen | Haptics, audio, reduced motion, units. Absorbs the T-115 mute button, which currently floats as its own control | T-201 |
 | T-205 | Accessibility | VoiceOver on menus, reduced-motion path, colourblind-safe HUD, contrast audit | T-204 |
 | T-206 | Peaks progression UX | Unlock moments feel earned; progress toward next peak visible | T-201 |
 

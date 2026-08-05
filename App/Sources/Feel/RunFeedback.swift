@@ -47,8 +47,13 @@ final class RunFeedback {
     // MARK: - Per-frame
 
     func update(cues: FeelCues, delta: Double) {
-        parameters.windGain.pointee = Float(cues.windLevel) * 0.16
-        parameters.carveGain.pointee = Float(cues.carveLevel) * 0.13
+        // Muting zeroes the gains rather than stopping the engine: the render block keeps
+        // running and the sound resumes on the next frame after unmuting, with no restart
+        // click and no torn-down audio session. Haptics are deliberately unaffected —
+        // "mute" is about what the room hears.
+        let audible: Float = AudioSettings.shared.isMuted ? 0 : 1
+        parameters.windGain.pointee = Float(cues.windLevel) * 0.16 * audible
+        parameters.carveGain.pointee = Float(cues.carveLevel) * 0.13 * audible
 
         // Surface roughness as a continuous rumble. This is the channel that makes the
         // snowpack a physical fact rather than a label on a card — the player feels
