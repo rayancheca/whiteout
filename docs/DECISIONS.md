@@ -192,3 +192,30 @@ analogue of ADR-012: a plank spans the surface it covers, and the drawn plank is
 **Consequence.** Presentation-only and read-only, so the `(seed, input tape)` a server
 re-simulates is untouched. The placeholder capsule hid this because it had no long
 horizontal element to reveal it.
+
+### ADR-021 — README screenshots use named cities, never the developer's location
+**Decision.** The screenshots that demonstrate the altitude model resolve their weather
+from a named showcase city (Tokyo), not from `Origin.here`. No capture published to the
+repository may be taken with the real device location.
+**Why.** The repository is public (ADR-016), and the conditions card prints the resolved
+place, temperature, wind and visibility. Captured from `.here`, that quartet is a location
+disclosure — geohash bucketing protects the *request*, not a screenshot of the answer. A
+named city is also reproducible by anyone cloning the repo, which the developer's back
+garden is not, and it keeps "real live Open-Meteo data" literally true.
+**Consequence.** The caption for those beats names the city instead of saying "your real
+local weather". The claim gets weaker; it also becomes checkable.
+**Rejected.** Real location (discloses region). The simulator's default coordinate
+(Cupertino — neutral, but it makes the weather story arbitrary while *looking* personal,
+which is the worst of both).
+
+### ADR-022 — A README may not show a state the build cannot produce
+**Decision.** T-112 is blocked on T-113 rather than shipping seven of eight beats. No
+screenshot or caption describing the tuck goes into the README until a held input actually
+renders the tuck.
+**Why.** The push was held in the first place because the existing captures misrepresented
+the app — a black capsule and a letterboxed frame. Publishing a "tucked, flat out" caption
+while holding produces no visible change would be the identical failure with fresh pixels
+on it, and would additionally retire the question: a reader who sees the tuck documented
+has no reason to report that it does not happen.
+**Consequence.** Four verified captures sit unused in `docs/screenshots/pending/` until
+T-113 lands. That is the cost, and it is smaller than publishing a false claim.

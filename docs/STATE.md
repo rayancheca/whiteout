@@ -1,123 +1,113 @@
 # State
 
-**Updated:** Session 0002 · 2026-08-05
-**Milestone:** M1 (Vertical Slice) — T-101 and T-110 done
+**Updated:** Session 0003 · 2026-08-05
+**Milestone:** M1 (Vertical Slice) — T-112 attempted, blocked on a bug it uncovered
 
 ---
 
 ## Where the project is
 
-The skier is a real, jointed silhouette instead of a black capsule, and the game now fills
-the whole screen. The rig is a pure pose solver in `WhiteoutCore`, so proportion and
-legibility are unit tests rather than screenshots.
+**111 tests passing** across 16 suites in ~30 ms. iOS build green. No source changed this
+session — the code is exactly as Session 0002 left it.
 
-**109 tests passing** across 16 suites in ~30 ms. iOS build green.
+T-112 (refresh README screenshots) was attempted and is **blocked**. Four of the eight
+beats are captured and good; the rest need a tuck to photograph, and the tuck does not
+render. That is now **T-113**, and it is the most important thing in the project.
 
-## Verified working
+## The bug that stopped the session
 
-Confirmed by running it and measuring pixels, not by reasoning about it:
+**Holding the screen produces no visible change.** The game has exactly one input, and it
+currently does nothing you can see.
 
-- **Fullscreen.** Content measured at 874 × 402 pt on iPhone 17 Pro, 100% of the display.
-  Before the fix it was 564 × 376 — 36% of the width was black bars.
-- **Safe area.** The conditions card clears the Dynamic Island in landscape; the canvas
-  still runs edge to edge behind it.
-- **The rig reads.** Head, torso, arms, ski and pole all legible at run scale.
-- **The tuck is a real shape change.** Measured from screenshots: upright silhouette 32.0 pt,
-  tucked 16.7 pt — a ratio of 0.52. The placeholder faked 0.68 with a vertical squash, which
-  shortens the standing shape without changing it.
-- **The ski lies on the snow** after the drawn-length angle fix (ADR-020).
-- Everything from Session 0001 still holds: live Open-Meteo → physics, offline fallback,
-  tuck/carve/crash/restart.
+What is established, with evidence:
 
-## Written but NOT verified
+- The **render path is fine.** The `collapsed` crash pose renders correctly — photographed,
+  lying flat on the slope. It reaches the screen through the identical
+  `SkierRig.pose(for:cues:)` → `SkierNode.apply(_:)` call that the tuck would use. So pose
+  switching works end to end for a non-upright pose.
+- The **rig is fine.** `tuckCompression` is binary (`FeelModel.swift:56`), so a held tuck
+  is `upright.blended(toward: tuck, amount: 1)` — the tuck pose exactly. A Core test already
+  asserts this ("a held tuck reaches the tuck pose exactly").
+- Therefore the fault is **`isHolding` never staying true.** It is set in `touchesBegan`
+  and cleared only in `touchesEnded` / `touchesCancelled` / `restart`
+  (`MountainScene.swift:106–125`). Something ends the touch immediately.
+- Corroborating from the physics side: **speed does not rise across a hold.** Measured
+  61 → 63 km/h over a 15 s press, which is drift, not a drag reduction.
 
-- **Haptics.** `RunFeedback` compiles and does not crash, but the simulator has no taptic
-  engine. Entirely unverified. Do not claim otherwise.
-- **Procedural audio.** The engine starts without crashing; nobody has heard it.
-- **Landscape-right safe area.** Verified in landscape-left only. The insets come from
-  `GeometryReader`, which is orientation-correct by construction, but it has not been seen.
-- **The crash pose on screen.** A mid-flip crash used to render head-down, because the
-  simulation freezes `rotation` at impact and the renderer used it. Now a grounded skier
-  always takes the surface angle, and every crashed state has `isGrounded == true` — so it
-  is correct by construction, but no crash has actually been watched. Packed snow has too
-  little chatter to crash within a test run; use the dev panel to pick ice.
-- **The opening frame.** `buildSkier` now poses once, because `update` returns early on its
-  first call. Reasoned and compiled, not photographed — it is a single frame.
-- **The night palette on screen.** The legibility guarantee is asserted in tests across 8
-  palettes; only daytime packed snow has actually been looked at.
+Root cause is **not** yet identified. Leading suspect: `GameView.swift:39` passes
+`makeScene(size:)` — a freshly constructed `MountainScene` — as `SpriteView`'s scene on
+every body evaluation. `.id(sceneID)` pins the *view* identity but not the scene value, and
+a re-presented scene would cancel an in-flight touch and lose the flag. Unproven.
 
-Haptics and audio need T-109 (device TestFlight) to confirm.
+**Open question only a human can answer:** when a person presses and holds on the simulator,
+does the skier change shape? If no, the app is broken. If yes, it was synthetic input
+failing and T-113 is much narrower. The user reported the game "does nothing", which points
+at the first, but it was not confirmed as a direct answer to this question.
 
-## Known rough edges
+## Verified working this session
 
-- **Bones stay rigid in the authored poses but not mid-blend.** `blended(toward:amount:)`
-  interpolates joint *positions*, which shortens every bone at intermediate `t` — measured
-  at ~6.6% of torso length at `t = 0.5`, on every frame of every tuck entry and exit. Not
-  visible at 30 pt, but it is the reason T-111 exists. The fix is to blend in angle space,
-  which is the space T-102 needs anyway.
-- The rig has four poses with no transitions — switching between them is instantaneous.
-  That is exactly T-102.
-- **`FeelCues.tuckCompression` is zeroed in the air** (`FeelModel.swift:56`). Harmless today
-  because `pose(for:cues:)` returns the air pose before consulting it, but T-102 cannot
-  drive an input-responsive air pose (a held flip) from that cue — the information is
-  already destroyed. It needs the raw input, not the cue.
-- **A flip has no up/down cue.** The head and the ski are both near-symmetric in profile,
-  so an inverted skier looks much like an upright one. T-102 needs an asymmetric element.
-- Visuals remain systemically correct but artistically thin: no volumetric light, no depth
-  of field, no snow surface detail (T-103, T-104).
-- Speed reads slightly high (~60–85 km/h). Worth a tuning pass on device.
-- The location permission prompt still appears before any context is given.
+Confirmed by capture, not by reasoning:
 
-## Surprises worth carrying forward
+- **The night palette renders.** Tokyo at 03:05 local resolves to a dark sky with stars at
+  5,200 m. Session 0002 listed this as never having been looked at.
+- **The crash pose lies flat on the slope.** Photographed at the end of a Reykjavík run —
+  collapsed sprawl, correct surface angle, EDGE meter full red. Also previously unverified.
+- **Fullscreen and the rig hold up.** Every capture is edge to edge at 2622 × 1206 px, and
+  the skier reads as a jointed figure — head, torso, arms, poles, ski — at run scale.
+- **Live Open-Meteo still drives everything.** Four cities resolved to four genuinely
+  different snowpacks within one session (see below).
 
-Both of this session's real findings came from *measuring*, not from reading code:
+## The four captures
 
-1. **The app had never been fullscreen.** No line of source was wrong — the bug lived in the
-   *absence* of a plist key, so there was nothing to read. It survived all of M0 because
-   letterboxing looks like a deliberate frame until you measure it. Lesson: measure the
-   canvas, do not assume the screen you asked for is the screen you got.
+In `docs/screenshots/pending/`, not yet in the README. All fullscreen, live data, real rig.
 
-2. **The legibility test passed while testing the wrong thing.** The first version asserted
-   contrast against `skyHorizon` and `skyZenith` and went green. But the skier never reaches
-   the sky — it needs ~111 m of relative altitude — and is in fact drawn against the nearest
-   ridge band the entire run. A green test against the wrong backdrop is worse than no test,
-   because it retires the question. Lesson: before asserting a visual property, verify what
-   is *actually behind* the thing you are asserting about.
+| Beat | Origin | Result |
+|------|--------|--------|
+| 1 | Chamonix | Spring Slush · 10° · 8 km/h · 17 km |
+| 2 | Reykjavík | Boilerplate · −6° · 35 km/h · 25 km |
+| 3 | Tokyo @ 2,800 m | Spring Slush · 6° · 3 km · night |
+| 4 | Tokyo @ 5,200 m | Boilerplate · −10° · 3 km · stars |
 
-3. **A tolerance band is not a rigidity check.** The first `limbsStayAttached` test allowed
-   each limb a range of 0.05–0.32 and passed — while the upper arm was 51% shorter in the
-   tuck than standing and the forearm 67% longer. A test wide enough never to fail asserts
-   nothing. The replacement compares every pose against the standing one, and the poses are
-   now *built* from a single bone table so the property is structural rather than merely
-   asserted.
+Beats 3 and 4 are the strongest pairing the project has produced: identical weather and
+moment, 2,400 m apart, 16 °C colder, slush becomes boilerplate. Reykjavík is a better story
+than the old capture too — 35 km/h wind is *why* it is scoured.
 
-The Session 0001 pattern held again: reasoning missed all three, measurement caught them.
-Worth noting the review that surfaced #3 was only possible because the rig lives in Core as
-plain geometry — the same defect inside a SpriteKit node would have needed an artist's eye.
+Per ADR-021 these use named cities, never the real device location, because the repository
+is public and the conditions card is a location disclosure.
 
-## The push is held
+## Still unverified
 
-Four commits are local-only. The README's 7 screenshots all show the letterboxed frame and
-the black capsule, and caption 6 describes the vertical squash that no longer exists —
-pushing would publish captures that misrepresent the app. **T-112 refreshes them and then
-pushes.** Do that before anything else if off-machine backup matters more than the ordering.
-
-## Next
-
-**T-102 — Skier animation states.** The rig exposes `upright`, `tuck`, `airborne` and
-`collapsed` plus a `blended(toward:amount:)`, so T-102 is transitions and timing, not new
-geometry: easing between poses, a real crash tumble, carve lean, and flip tracking in the
-air.
-
-Then T-103 (art direction) and T-106 (audio) are both unblocked and independent.
+- **Haptics and procedural audio.** No taptic engine in the simulator. Needs T-109.
+- **Landscape-right safe area.** Landscape-left only, still.
+- **Mid-blend bone rigidity.** `blended(toward:amount:)` shortens bones at intermediate `t`
+  (~6.6% of torso length at 0.5). That is T-111. Note this is currently *unobservable* —
+  with `tuckCompression` binary and the tuck not rendering, no intermediate `t` is ever
+  drawn on screen.
 
 ## Environment notes
 
-- Simulator: iPhone 17 Pro `10C15FE0-3D9A-40D5-9E45-C0702E906DF3`, landscape 874 × 402 pt
-- Simulator builds need `CODE_SIGNING_ALLOWED=NO`; no signing team configured
-- Screenshots must be rotated with `sips -r -90` (device portrait, app landscape)
-- The skier's screen X moves from 0.34 to 0.20 of width as speed rises, so a fixed crop
-  window will lose it — locate it by thresholding for the near-black body colour
-- After `xcodegen generate`, SourceKit reports a spurious "No such module 'WhiteoutCore'"
-  until the index rebuilds. The build is unaffected; ignore it
-- Vercel MCP is authorized and ready for M3
+Corrections to Session 0002's notes, learned expensively:
+
+- **`timeout` does not exist on macOS.** `timeout 45 xcrun simctl …` fails as
+  command-not-found and, wrapped in `|| echo FAILED`, reads exactly like the command
+  failing. This cost most of an hour of misdiagnosis. Use `gtimeout` or no wrapper.
+- **Neither `touch_path` nor `tap` with `duration` sustains a touch.** Both deliver
+  touch-down and touch-up effectively back to back. A plain tap *does* reach the scene —
+  it restarts a crashed run — so touch delivery works; duration does not.
+- **`xcrun simctl io … screenshot` needs Simulator.app actually running** and the device
+  booted, or it returns "Timeout waiting for screen surfaces".
+- The in-app simulator panel (`attach`) streams the device without controlling the Mac and
+  coexists fine with `simctl` screenshots. **Use it. Do not reach for desktop control** —
+  it was tried this session, it did not solve the problem, and the user objected to it.
+- Screenshots still need `sips -r -90`; device portrait, app landscape.
+- Skier ink thresholds below luminance 35; terrain starts at 40. Exclude the leftmost
+  200 px in landscape or the Dynamic Island is picked up as body.
+
+## Next
+
+**T-113 — make a held input sustain the tuck.** Answer the human question above first, then
+instrument `isHolding` and confirm what ends the touch. T-112 unblocks the moment the tuck
+renders; four of its eight beats are already shot.
+
+T-102, T-103 and T-106 remain unblocked and independent, but T-113 should come first — it
+is the difference between a game that responds and one that does not.
