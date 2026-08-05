@@ -123,6 +123,16 @@ final class MountainScene: SKScene {
         skier = SkierState.start(on: terrain)
         isHolding = false
         telemetry.update(from: skier)
+
+        // Everything the previous run accumulated has to go with it. The trail is keyed by
+        // distance, so surviving points sit ahead of a skier who has just reset to zero and
+        // reappear as a stray line once the new run reaches them. The camera and the landing
+        // punch are likewise still holding the crash's values.
+        cues = .idle
+        trail.removeAll()
+        landingPunch = 0
+        cameraHeightM = terrain.height(at: 0)
+        layoutSkier()
     }
 
     @available(*, unavailable)
@@ -415,6 +425,11 @@ final class MountainScene: SKScene {
         skierNode.removeFromParent()
         skierNode.zPosition = 20
         worldNode.addChild(skierNode)
+        // Posed once here because `update` returns early on its first call, having no
+        // previous timestamp to difference against. Without this the opening frame draws
+        // every limb path as nil and leaves the head at the node's origin — a head alone,
+        // in the corner of the scene.
+        layoutSkier()
     }
 
     /// Snow kicked up by the edges. Birth rate is driven per frame by `updateSpray`.
@@ -678,7 +693,12 @@ final class MountainScene: SKScene {
         // about 17 m of terrain; at the physical 1.7 m contact angle it visibly refuses to
         // lie on the slope under it. This reads simulation state and never writes to it, so
         // the tape a server re-simulates is untouched.
-        skierNode.zRotation = skier.isGrounded && !skier.hasCrashed
+        //
+        // A crashed skier counts as grounded here. The simulation freezes `rotation` at the
+        // instant of impact, so a run ended by a botched backflip would otherwise slide to a
+        // halt at 126° — the collapsed sprawl drawn head-down, skis in the air. A body that
+        // has come to rest lies on the slope.
+        skierNode.zRotation = skier.isGrounded
             ? CGFloat(terrain.surfaceAngle(at: skier.distanceM, halfLengthM: drawnSkiHalfLengthM))
             : CGFloat(skier.rotation)
         // Tucking is readable in the silhouette before it is readable in the speed. It used

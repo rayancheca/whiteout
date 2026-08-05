@@ -36,6 +36,13 @@ Confirmed by running it and measuring pixels, not by reasoning about it:
 - **Procedural audio.** The engine starts without crashing; nobody has heard it.
 - **Landscape-right safe area.** Verified in landscape-left only. The insets come from
   `GeometryReader`, which is orientation-correct by construction, but it has not been seen.
+- **The crash pose on screen.** A mid-flip crash used to render head-down, because the
+  simulation freezes `rotation` at impact and the renderer used it. Now a grounded skier
+  always takes the surface angle, and every crashed state has `isGrounded == true` — so it
+  is correct by construction, but no crash has actually been watched. Packed snow has too
+  little chatter to crash within a test run; use the dev panel to pick ice.
+- **The opening frame.** `buildSkier` now poses once, because `update` returns early on its
+  first call. Reasoned and compiled, not photographed — it is a single frame.
 - **The night palette on screen.** The legibility guarantee is asserted in tests across 8
   palettes; only daytime packed snow has actually been looked at.
 
