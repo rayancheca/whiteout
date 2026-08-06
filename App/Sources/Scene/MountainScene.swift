@@ -53,7 +53,9 @@ final class MountainScene: SKScene {
 
     /// Whether the run has finished and the summary may be shown. Derived, never stored, so
     /// `restart()` has nothing extra to clear and a replay carries nothing extra.
-    private var isRunOver: Bool { RunOutcome.hasSettled(skier, collapse: animator.crash) }
+    private var isRunOver: Bool {
+        RunOutcome.hasSettled(skier, collapse: animator.crash, terrain: terrain)
+    }
 
     /// One expression for what the HUD is told, so the three call sites cannot drift apart.
     private func publishTelemetry() {
@@ -122,13 +124,19 @@ final class MountainScene: SKScene {
     // One input, held or not. What the correct hold pattern *is* changes entirely with
     // the day's snowpack, which is where the weather stops being scenery.
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // A crash usually arrives with the finger still down holding the tuck, so the very next
-        // touch is often reflex rather than intent. Restarting only once the run has *settled*
-        // makes the slide a natural debounce: the result cannot be dismissed before it appears.
-        guard !skier.hasCrashed else {
-            if isRunOver { restart() }
+        // Gated on the run being *over* rather than on having crashed, because a stall ends a
+        // run without one (T-116). Keying restart off `hasCrashed` left a stalled run showing a
+        // summary card that no tap could dismiss, while the same tap started a tuck underneath it.
+        if isRunOver {
+            restart()
             return
         }
+        // A crash usually arrives with the finger still down holding the tuck, so the very next
+        // touch is often reflex rather than intent. Swallowing input through the slide makes it
+        // a natural debounce: the result cannot be dismissed before it appears. A stall needs no
+        // equivalent — it can only be reached with the skier already at a standstill, so there
+        // is no reflex tap in flight to swallow.
+        guard !skier.hasCrashed else { return }
         isHolding = true
     }
 
@@ -565,9 +573,11 @@ final class MountainScene: SKScene {
             landingPunch = 16 * CGFloat(impact)
             feedback.landing(strength: impact)
         }
-        if let reason = RunOutcome.reason(previous: previous, current: skier) {
+        if let reason = RunOutcome.reason(previous: previous, current: skier, terrain: terrain) {
             endReason = reason
-            feedback.crash()
+            // Only a crash gets the thump. A stall ends the run with the skier still upright,
+            // and a haptic impact there would report a collision that never happened.
+            if reason.isCrash { feedback.crash() }
         }
 
         // After the impact, because the absorption pose is driven by the same number that

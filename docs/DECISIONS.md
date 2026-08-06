@@ -336,3 +336,53 @@ crash frame itself moves 9–31 m across 30/60/120 Hz, because different deltas 
 instability threshold in different places — roughly seventy times the 2–5 m of the slide it
 would be removing. Whether the replay tape is fixed-step or carries deltas is T-403's question;
 pretending the slide is the source of frame-rate dependence would write a false premise here.
+
+### ADR-027 — A stall ends a run because it is a fixed point, not because it looks stuck
+**Decision.** `RunOutcome.hasSettled` gains a second disjunct, `hasStalled(state, terrain:)`:
+`!hasCrashed && isGrounded && velocityX == 0 && terrain.contactAngle(at: distanceM) >= 0`.
+The run ends immediately, with `Reason.ranOutOfSpeed` ("RAN OUT OF SPEED"). `RunScore` is
+unchanged — `endedInCrash` reads `hasCrashed`, which is already `false` for a stall.
+
+**Why the counter-slope clause, and not a timer.** The obvious implementation is "stopped for
+N seconds". That stores an instant, which is exactly what ADR-026 bought us out of, and it
+needs its own reset in `restart()`, its own frame-rate story and its own determinism test.
+The clause used instead is not a heuristic — it is the exact condition for the state to be its
+own successor. `stepGrounded` accelerates by `-gravity · sin(contactAngle)` and drag vanishes
+at zero speed, so a stopped skier is driven by that one term: a non-negative contact angle
+gives a non-positive acceleration, `max(0, …)` clamps it back, the distance does not change,
+and the angle is therefore identical next frame. Instability cannot rescue it either — the
+build term scales with speed, so a held tuck at a standstill never crashes out. The same
+argument that made a settled crash unsnapshottable makes a stall answerable on a single frame.
+
+**Measured rather than asserted.** Over 120 seeds × 6 surfaces × 2 input tapes: 206 stalls,
+1.17 M frames after the first one, and the predicate never went false once true. 183 of them
+driven a further 20 s of alternating input at 1/20 — the coarsest delta the loop can deliver —
+moved the skier 0.0 m. Across 3,600 runs the contact angle at a stall was *always* strictly
+positive, minimum +0.0093: a skier stops while climbing, never on a descent.
+
+**Why terrain in the signature.** The predicate has to ask the same question the physics
+integrates, and that question is `contactAngle`. Passing the generator rather than a cached
+gradient keeps everything derived; it is a value type, pure in `(seed, snowState)`, so a
+server re-simulating a run to verify it already has one. Both `||` and `hasStalled`'s leading
+clauses short-circuit, so terrain is sampled only on a frame where the skier is already
+stopped and uncrashed — a live run pays nothing.
+
+**Why no legibility beat.** A crash waits for `collapseFloor` so the fold can be seen. A stall
+has no fold — `animator.crash` stays 0 and the skier remains upright — and the readable event
+*is* the world stopping. Inventing a beat would mean storing an instant to have something to
+wait on.
+
+**Consequence for input, and the second half of the defect.** `touchesBegan` gated restart on
+`hasCrashed`. Ending a stall without changing that would have produced a *worse* bug than the
+soft-lock: a summary card no tap could dismiss, while the same tap started a tuck underneath
+it. The gate is now `isRunOver`. The crash debounce survives as a separate clause; a stall
+needs no equivalent, since it can only be reached with the skier already at a standstill.
+
+**Consequence for feel.** `Reason.isCrash` is `false` for a stall, so `feedback.crash()` no
+longer fires on every run ending — a haptic thump there would report an impact that never
+happened.
+
+**What this does not fix.** A stall is now a *legible* ending, not a rare one: 8.7% of runs in
+the sweep, and the earliest found is 17 m from the drop-in. That is a terrain and drop-in-speed
+question — the ridge octave locally exceeds the base gradient, and 8 m/s buys only 3.3 m of
+climb — and it is now T-119, not a silent soft-lock.
